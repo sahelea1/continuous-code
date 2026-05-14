@@ -1,0 +1,18 @@
+// Example: How to swap models for specific agents
+// Copy individual agent overrides into your opencode.json "agent" section.
+//
+// You can mix providers freely — each agent can use a different model.
+// Only override the agents you want to change; the rest keep their defaults.
+{
+  "$schema": "https://opencode.ai/config.json",
+  "agent": {
+    // Use OpenAI GPT-5.5 for implementation
+    "kraken": { "model": "openai/gpt-5.5" },
+
+    // Use Anthropic Claude Sonnet for exploration
+    "scout": { "model": "anthropic/claude-sonnet-4-6" },
+
+    // Use Anthropic Claude Opus for research
+    "oracle": { "model": "anthropic/claude-opus-4-7" }
+  }
+}

@@ -1,0 +1,41 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "default_agent": "build",
+  "model": "ollama-cloud/deepseek-v4-pro",
+  "agent": {
+    "build": {
+      "model": "ollama-cloud/deepseek-v4-pro",
+      "description": "Primary orchestrator — delegates all work to subagents",
+      "permission": {
+        "read": "deny",
+        "grep": "deny",
+        "glob": "deny",
+        "list": "deny",
+        "bash": "deny",
+        "webfetch": "deny",
+        "websearch": "deny",
+        "task": "allow",
+        "edit": "deny",
+        "todowrite": "allow",
+        "skill": "allow",
+        "question": "allow"
+      }
+    },
+    "scout": { "model": "ollama-cloud/deepseek-v4-flash" },
+    "oracle": { "model": "ollama-cloud/deepseek-v4-pro" },
+    "sleuth": { "model": "ollama-cloud/deepseek-v4-pro" },
+    "kraken": { "model": "ollama-cloud/deepseek-v4-pro" },
+    "spark": { "model": "ollama-cloud/deepseek-v4-flash" },
+    "arbiter": { "model": "ollama-cloud/deepseek-v4-flash" },
+    "judge": { "model": "ollama-cloud/deepseek-v4-pro" },
+    "plan-agent": { "model": "ollama-cloud/deepseek-v4-pro" },
+    "phoenix": { "model": "ollama-cloud/deepseek-v4-pro" },
+    "architect": { "model": "ollama-cloud/deepseek-v4-pro" },
+    "scribe": { "model": "ollama-cloud/deepseek-v4-flash" },
+    "memory-extractor": { "model": "ollama-cloud/deepseek-v4-flash" }
+  },
+  "plugin": [
+    "opencode-continuous"
+  ],
+  "permission": {}
+}

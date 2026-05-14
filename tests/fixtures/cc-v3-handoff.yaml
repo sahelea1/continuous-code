@@ -1,0 +1,30 @@
+goal: "Implement user authentication middleware"
+now: "Completed JWT validation, writing integration tests"
+test: "npm test -- --grep auth"
+done_this_session:
+  - Scaffolded auth middleware in src/middleware/auth.ts
+  - Added JWT token validation with RS256
+  - Unit tests for token parsing
+blockers: []
+questions:
+  - Should refresh tokens have a separate signing key?
+decisions:
+  - Using RS256 over HS256 for JWT signing
+  - Storing refresh tokens in Redis with 7-day TTL
+findings:
+  - Existing session store uses Redis 7.x with cluster mode
+  - Rate limiting middleware already checks auth headers
+worked:
+  - TDD approach caught expiry edge case early
+  - Mocking Redis with ioredis-mock worked well
+failed:
+  - Initial attempt with HS256 rejected by security review
+next:
+  - Add refresh token rotation endpoint
+  - Integration tests with real Redis
+  - Update API docs with auth headers
+files:
+  - src/middleware/auth.ts
+  - src/middleware/auth.test.ts
+  - src/routes/auth/refresh.ts
+  - src/config/jwt.ts

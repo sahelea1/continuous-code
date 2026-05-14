@@ -1,0 +1,12 @@
+services:
+  opencode:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    volumes:
+      # User project directory (override with PROJECT_DIR env var)
+      - ${PROJECT_DIR:-./workspace}:/workspace
+      # Host auth (writable bind mount)
+      - ${HOME}/.local/share/opencode:/root/.local/share/opencode
+    stdin_open: true
+    tty: true

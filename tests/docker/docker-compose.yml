@@ -1,0 +1,24 @@
+services:
+  test:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    volumes:
+      # Mount plugin source
+      - ../../:/plugin
+      # Scratch project dir for test scenarios
+      - ./scratch:/work
+    environment:
+      - OPENCODE_CONFIG_DIR=/root/.config/opencode-test
+      - NODE_ENV=test
+    working_dir: /work
+    command:
+      - bash
+      - -c
+      - |
+        # Copy host auth into container (writable, avoids SQLite WAL issues)
+        if [ -d /plugin/tests/docker/.host-auth ]; then
+          mkdir -p /root/.local/share/opencode
+          cp -r /plugin/tests/docker/.host-auth/* /root/.local/share/opencode/ 2>/dev/null || true
+        fi
+        cd /plugin && ./install.sh && cd /work && bash /plugin/tests/scenarios/run-all.sh

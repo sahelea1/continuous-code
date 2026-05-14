@@ -1,0 +1,15 @@
+node_modules/
+dist/
+.git/
+.gitignore
+.claude/
+.tldr/
+.tldrignore
+thoughts/
+tests/
+*.bak
+*.map
+prompt-plan.md
+RESEARCH.md
+README.md
+bun.lock

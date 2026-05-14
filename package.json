@@ -1,0 +1,26 @@
+{
+  "name": "opencode-continuous",
+  "version": "0.1.0",
+  "description": "Continuous Claude v3 architecture ported to OpenCode — agent-only orchestration with parallel delegation",
+  "type": "module",
+  "main": "./dist/index.js",
+  "exports": {
+    "./server": { "import": "./dist/index.js" }
+  },
+  "engines": { "opencode": ">=1.14.0" },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "test": "bash tests/docker/run.sh"
+  },
+  "dependencies": {
+    "@opencode-ai/plugin": "^1.14.33",
+    "yaml": "^2.4.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.5.0",
+    "@types/node": "^20.14.0"
+  },
+  "files": ["dist/", "agents/", "commands/", "opencode.json", "skill-rules.json", "install.sh", "uninstall.sh"],
+  "license": "MIT"
+}

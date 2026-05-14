@@ -1,0 +1,7 @@
+node_modules/
+dist/
+*.bak
+tests/docker/scratch/
+tests/docker/.host-auth/
+thoughts/
+.opencode/

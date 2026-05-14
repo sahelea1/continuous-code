@@ -1,0 +1,52 @@
+{
+  "rules": [
+    {
+      "pattern": ["fix", "bug", "broken", "failing", "error", "crash", "debug"],
+      "critical": ["sleuth"],
+      "recommended": ["spark", "arbiter"],
+      "command": "/fix"
+    },
+    {
+      "pattern": ["build", "implement", "create", "add", "feature"],
+      "critical": ["plan-agent", "architect"],
+      "recommended": ["kraken", "arbiter", "judge"],
+      "command": "/build"
+    },
+    {
+      "pattern": ["test", "tdd", "coverage", "spec"],
+      "critical": ["arbiter"],
+      "recommended": ["plan-agent", "kraken"],
+      "command": "/tdd"
+    },
+    {
+      "pattern": ["explore", "find", "where", "search", "understand", "how does"],
+      "critical": ["scout"],
+      "recommended": ["oracle"],
+      "command": "/explore"
+    },
+    {
+      "pattern": ["review", "check", "audit", "quality"],
+      "critical": ["judge"],
+      "recommended": ["arbiter", "scout"],
+      "command": "/review"
+    },
+    {
+      "pattern": ["refactor", "rename", "restructure", "cleanup", "migrate"],
+      "critical": ["phoenix"],
+      "recommended": ["judge", "kraken", "arbiter"],
+      "command": "/refactor"
+    },
+    {
+      "pattern": ["handoff", "done", "wrap up", "end session", "switching"],
+      "critical": ["scribe"],
+      "recommended": [],
+      "command": "/handoff"
+    },
+    {
+      "pattern": ["resume", "continue", "pick up", "start from"],
+      "critical": [],
+      "recommended": ["scout"],
+      "command": "/resume"
+    }
+  ]
+}
