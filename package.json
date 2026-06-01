@@ -11,7 +11,8 @@
   "scripts": {
     "build": "tsc",
     "dev": "tsc --watch",
-    "test": "bash tests/docker/run.sh"
+    "test": "bash tests/docker/run.sh",
+    "test:consensus": "node --test tests/consensus/"
   },
   "dependencies": {
     "@opencode-ai/plugin": "^1.14.33",
@@ -21,6 +22,6 @@
     "typescript": "^5.5.0",
     "@types/node": "^20.14.0"
   },
-  "files": ["dist/", "agents/", "commands/", "opencode.json", "skill-rules.json", "install.sh", "uninstall.sh"],
+  "files": ["dist/", "agents/", "commands/", "opencode.json", "skill-rules.json", "consensus.json", "install.sh", "uninstall.sh"],
   "license": "MIT"
 }

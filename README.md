@@ -243,6 +243,71 @@ Continuity ledgers are markdown checklists at `thoughts/ledgers/CONTINUITY_<topi
 
 ---
 
+## Multi-Model Consensus
+
+A toggleable sub-plugin that layers on top of the agent-only orchestration model. When enabled, the primary orchestrator forms substantive answers, plans, decisions, and analyses by asking **multiple AI models in parallel** (across providers at once) and producing **one combined consensus answer**. A designated **main** model is dominant: it synthesizes the final answer, breaks ties, and may override dissent when justified. The result behaves like a normal model answer in OpenCode.
+
+### Concept
+
+- A **panel** of models is queried simultaneously — for example OpenRouter models *and* ollama-cloud models at the same time, each with its own reasoning effort.
+- Exactly one panel member is the **main** (dominant) model. It is the tie-breaker.
+- The orchestrator calls `consensus_deliberate` to form any substantive answer and bases its reply on the returned consensus. All other tool usage and file edits still go through subagents via the `task` tool.
+
+### Configuration
+
+Consensus is configured in `consensus.json` at the project root (default **disabled** — opt-in). See `consensus.example.jsonc` for a fully commented template.
+
+```json
+{
+  "enabled": false,
+  "synthesis": "main-judge",
+  "maxTokens": 1024,
+  "temperature": 0.3,
+  "providers": {
+    "openrouter": { "baseURL": "https://openrouter.ai/api/v1", "apiKeyEnv": "OPENROUTER_API_KEY" },
+    "ollama-cloud": { "baseURL": "https://ollama.com/v1", "apiKeyEnv": "OLLAMA_API_KEY" }
+  },
+  "panel": [
+    { "id": "opus", "provider": "openrouter", "model": "anthropic/claude-opus-4.6", "reasoning": "high", "main": true },
+    { "id": "grok", "provider": "openrouter", "model": "x-ai/grok-4", "reasoning": "medium" },
+    { "id": "deepseek", "provider": "ollama-cloud", "model": "deepseek-v4-pro", "reasoning": "low" }
+  ]
+}
+```
+
+- **Toggle** with the `consensus_toggle` tool (`consensus_toggle { "enabled": true }`), by editing `consensus.json`, or via the `CONSENSUS_ENABLED` env var.
+- **Per-model reasoning effort** — `none|minimal|low|medium|high|xhigh`, applied for OpenRouter models only (ignored for ollama-cloud, which has no reasoning object).
+- **Cross-provider mixing** — list members on different providers; OpenRouter and ollama-cloud are queried in parallel.
+- **`requireParameters`** (default `false`) — when `false`, OpenRouter drops unsupported params (e.g. `reasoning`) so models still answer (graceful degradation); set `true` for strict reasoning routing (404s if an endpoint lacks `reasoning`), and only when the whole panel is curated to reasoning-capable models.
+
+### Synthesis modes
+
+| Mode | How it works | Constraint |
+|------|--------------|-----------|
+| `main-judge` (default) | Client-side fan-out: all panel models answer in parallel, then the main model synthesizes one answer and reports an agreement score plus whether it overrode dissent. | Works across providers |
+| `fusion` | Native OpenRouter Fusion: a single OpenRouter request runs all analysis models + a judge server-side. | All panel members must use the `openrouter` provider |
+
+### Environment variables
+
+- `OPENROUTER_API_KEY` — required for OpenRouter models.
+- `OLLAMA_API_KEY` — for ollama-cloud models (if your endpoint requires auth).
+
+Keys are read only from these env vars (named by each provider's `apiKeyEnv`); never store keys in `consensus.json`. Use `consensus_status` to see which keys are present (reported as `set`/`missing`, never the value).
+
+### Tools
+
+| Tool | Purpose |
+|------|---------|
+| `consensus_deliberate` | Get a combined consensus answer from the panel |
+| `consensus_status` | Inspect config, panel, and provider key availability |
+| `consensus_toggle` | Enable/disable consensus mode |
+
+### Cost note
+
+Running multiple premium models in parallel multiplies cost — every deliberation issues one request per panel member plus (in `main-judge` mode) one synthesis call by the main model. Keep the panel small and reasoning effort proportionate, and prefer cheaper models for non-main members.
+
+---
+
 ## Architecture
 
 ### Two-Layer Enforcement

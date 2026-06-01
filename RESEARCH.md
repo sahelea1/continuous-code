@@ -376,3 +376,31 @@ opencode-continuous/
 - Host auth: ~/.local/share/opencode/auth.json
 - Host config: ~/.config/opencode/
 - Plugin SDK installed: ~/.config/opencode/node_modules/@opencode-ai/plugin/
+
+## 11. Multi-Model Consensus (OpenRouter Fusion) Research
+
+The Multi-Model Consensus feature gets answers from several models at once and produces one combined output, with a dominant "main" model breaking ties. Two paths were researched.
+
+### Native Fusion vs client-side fan-out
+
+- **Native OpenRouter Fusion** runs the whole panel server-side in a single request. You attach a tool `{ "type": "openrouter:fusion", "parameters": { "analysis_models": [...1-8 slugs], "model": "<judge slug>", "max_completion_tokens": N, "reasoning": { "effort": "..." } } }` with `tool_choice: "required"`. The response carries `analysis.consensus` (array), `analysis.contradictions`, and `responses[]`. It is simplest and cheapest in round-trips, **but only works for OpenRouter-hosted models** — you cannot include an ollama-cloud model in `analysis_models`.
+- **Client-side fan-out ("main-judge")** issues one OpenAI-compatible `POST /chat/completions` per panel member in parallel (via `Promise.allSettled`), then makes one more call to the main model with a judge system prompt that synthesizes a single answer plus trailing `---AGREEMENT:` / `---OVERRIDE:` marker lines. This is the only way to mix providers.
+
+### Reasoning object
+
+Per-request reasoning is the body field `reasoning: { effort: "none"|"minimal"|"low"|"medium"|"high"|"xhigh", max_tokens?, exclude? }`. Pair it with `provider: { require_parameters: true }` so the parameters aren't silently dropped. Response content is at `choices[0].message.content`; reasoning trace at `choices[0].message.reasoning`. ollama-cloud (base URL `https://ollama.com/v1`) is OpenAI-compatible but does **not** support the `reasoning` object, so it must be omitted for non-OpenRouter providers.
+
+### Cross-provider mixing requires client-side orchestration
+
+Because native Fusion is OpenRouter-only, querying OpenRouter and ollama-cloud simultaneously can only be done client-side: resolve each member's provider config + API key (from `apiKeyEnv`), fan out in parallel, and synthesize locally. `supportsReasoning` is decided per call by `provider === "openrouter"`.
+
+### Request/response essentials
+
+- OpenRouter: base URL `https://openrouter.ai/api/v1`, `POST /chat/completions`, auth `Authorization: Bearer <key>`, optional `HTTP-Referer` / `X-Title` headers.
+- Token cap via `max_tokens` (Fusion uses `max_completion_tokens` inside the tool parameters).
+- `GET /api/v1/models` lists valid slugs and pricing.
+- Use an `AbortController` with a configurable timeout for every request.
+
+### Design decision
+
+Default to **client-side `main-judge`** because it supports cross-provider panels (the headline requirement) and gives explicit control over the synthesis prompt, agreement score, and override signal. Offer **native `fusion`** as an opt-in fast path when every panel member is on OpenRouter, with a defensive parser that falls back to `choices[0].message.content` if the Fusion response shape is unexpected.
