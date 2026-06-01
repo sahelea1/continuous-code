@@ -9,9 +9,11 @@ import { handoffSave } from "./tools/handoff-save.js"
 import { handoffLoad } from "./tools/handoff-load.js"
 import { ledgerUpdate } from "./tools/ledger-update.js"
 import { parallelDelegate } from "./tools/parallel-delegate.js"
-import { consensusDeliberate } from "./tools/consensus-deliberate.js"
+import { createConsensusDeliberate } from "./tools/consensus-deliberate.js"
 import { consensusStatus } from "./tools/consensus-status.js"
 import { consensusToggle } from "./tools/consensus-toggle.js"
+import { consensusModels } from "./tools/consensus-models.js"
+import { consensusConfigure } from "./tools/consensus-configure.js"
 
 const PLUGIN_ID = "opencode-continuous"
 
@@ -23,6 +25,7 @@ const server: Plugin = async (input, _options) => {
   const skillActivation = createSkillActivation(directory)
   const compactionHook = createCompactionHandoff(directory)
   const consensusMode = createConsensusMode(directory, client)
+  const consensusDeliberate = createConsensusDeliberate(client)
 
   return {
     "experimental.chat.system.transform": async (inp, out) => {
@@ -51,6 +54,8 @@ const server: Plugin = async (input, _options) => {
       consensus_deliberate: consensusDeliberate,
       consensus_status: consensusStatus,
       consensus_toggle: consensusToggle,
+      consensus_models: consensusModels,
+      consensus_configure: consensusConfigure,
     },
   }
 }

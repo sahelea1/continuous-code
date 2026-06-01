@@ -14,12 +14,23 @@ import type {
   ModelResponse,
 } from "./types.js"
 import { getMain, resolveApiKey } from "./config.js"
+import { withConsensusLock } from "./lock.js"
 
 /**
  * Run native OpenRouter Fusion and return a single consensus.
  * Throws if any panel member is not on the "openrouter" provider.
+ *
+ * Serialized via withConsensusLock so only one deliberation/fusion runs at a
+ * time within the single consensus instance.
  */
 export async function fusionDeliberate(
+  config: ConsensusConfig,
+  prompt: string,
+): Promise<ConsensusResult> {
+  return withConsensusLock(() => fusionDeliberateImpl(config, prompt))
+}
+
+async function fusionDeliberateImpl(
   config: ConsensusConfig,
   prompt: string,
 ): Promise<ConsensusResult> {

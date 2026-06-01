@@ -3,7 +3,7 @@
  *
  * Pure logic only — no `@opencode-ai/plugin` import.
  */
-import { readFileSync, existsSync } from "fs"
+import { readFileSync, writeFileSync, existsSync } from "fs"
 import { join } from "path"
 import type {
   ConsensusConfig,
@@ -149,4 +149,131 @@ export function getMain(config: ConsensusConfig): PanelMember {
   if (main) return main
   if (config.panel.length > 0) return config.panel[0]
   throw new Error("Consensus panel is empty — no main model available.")
+}
+
+/**
+ * Persist the consensus config to `<directory>/consensus.json`.
+ * Writes only the persistable fields, pretty-printed (2-space) + trailing
+ * newline. All programmatic writers share this single serializer so the file
+ * is never hand-edited.
+ */
+export function saveConsensusConfig(
+  directory: string,
+  config: ConsensusConfig,
+): void {
+  const persistable = {
+    enabled: config.enabled,
+    synthesis: config.synthesis,
+    maxTokens: config.maxTokens,
+    temperature: config.temperature,
+    agreementThreshold: config.agreementThreshold,
+    timeoutMs: config.timeoutMs,
+    requireParameters: config.requireParameters,
+    providers: config.providers,
+    panel: config.panel,
+  }
+  const configPath = join(directory, "consensus.json")
+  writeFileSync(configPath, JSON.stringify(persistable, null, 2) + "\n", "utf-8")
+}
+
+/**
+ * Derive a stable short id from a model slug: the last `/`-segment,
+ * lowercased, with non-alphanumerics collapsed to `-`.
+ */
+export function deriveId(slug: string): string {
+  const last = slug.split("/").pop() ?? slug
+  return last.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "")
+}
+
+/** Shallow-clone a config so pure helpers never mutate their input. */
+function cloneConfig(config: ConsensusConfig): ConsensusConfig {
+  return {
+    ...config,
+    panel: config.panel.map((m) => ({ ...m })),
+    providers: { ...config.providers },
+  }
+}
+
+/**
+ * Add or update a panel member (matched by `id`). Returns a new config.
+ * - If `member.id` is empty, derive it from `member.model`; on collision with
+ *   a DIFFERENT model slug, suffix `-2`, `-3`, …
+ * - If the resulting member is the only one, it becomes `main`.
+ * - The panel is normalized so at most one member is `main`.
+ */
+export function upsertPanelMember(
+  config: ConsensusConfig,
+  member: PanelMember,
+): ConsensusConfig {
+  const next = cloneConfig(config)
+  const incoming: PanelMember = { ...member }
+
+  if (!incoming.id || incoming.id.trim().length === 0) {
+    const base = deriveId(incoming.model)
+    let candidate = base || "model"
+    let n = 1
+    // Bump suffix while the id is taken by a member with a DIFFERENT model.
+    while (
+      next.panel.some(
+        (m) => m.id === candidate && m.model !== incoming.model,
+      )
+    ) {
+      n += 1
+      candidate = `${base || "model"}-${n}`
+    }
+    incoming.id = candidate
+  }
+
+  const idx = next.panel.findIndex((m) => m.id === incoming.id)
+  if (idx >= 0) {
+    next.panel[idx] = { ...next.panel[idx], ...incoming }
+  } else {
+    next.panel.push(incoming)
+  }
+
+  if (next.panel.length === 1) {
+    next.panel[0] = { ...next.panel[0], main: true }
+  }
+
+  next.panel = normalizePanel(next.panel)
+  return next
+}
+
+/**
+ * Remove a panel member by id or model slug. Returns a new config.
+ * If the removed member was `main` and the panel is still non-empty, the first
+ * remaining member is promoted to `main`.
+ */
+export function removePanelMember(
+  config: ConsensusConfig,
+  idOrModel: string,
+): ConsensusConfig {
+  const next = cloneConfig(config)
+  const removed = next.panel.find(
+    (m) => m.id === idOrModel || m.model === idOrModel,
+  )
+  next.panel = next.panel.filter(
+    (m) => !(m.id === idOrModel || m.model === idOrModel),
+  )
+  if (removed?.main && next.panel.length > 0) {
+    next.panel = next.panel.map((m, i) => ({ ...m, main: i === 0 }))
+  }
+  next.panel = normalizePanel(next.panel)
+  return next
+}
+
+/**
+ * Set the `main` flag on the member matching `id` and unset all others.
+ * Throws if `id` is not found. Returns a new config.
+ */
+export function setMainMember(
+  config: ConsensusConfig,
+  id: string,
+): ConsensusConfig {
+  const next = cloneConfig(config)
+  if (!next.panel.some((m) => m.id === id)) {
+    throw new Error(`No panel member with id '${id}'.`)
+  }
+  next.panel = next.panel.map((m) => ({ ...m, main: m.id === id }))
+  return next
 }
