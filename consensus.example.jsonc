@@ -1,0 +1,98 @@
+{
+  // ----------------------------------------------------------------------
+  // Multi-Model Consensus configuration (consensus.json)
+  //
+  // When enabled, the primary orchestrator forms substantive answers by
+  // asking MULTIPLE models in parallel (across providers) and producing ONE
+  // combined consensus answer. A designated "main" model is dominant and
+  // breaks ties. Copy this file to `consensus.json` and edit to taste.
+  //
+  // NEVER put a real API key in this file. Keys are read from environment
+  // variables named by each provider's `apiKeyEnv`.
+  // ----------------------------------------------------------------------
+
+  // Master switch. Default false (opt-in). Can also be toggled with the
+  // `consensus_toggle` tool, or overridden by the CONSENSUS_ENABLED env var
+  // ("1"/"true"/"yes" -> on, "0"/"false"/"no" -> off).
+  "enabled": false,
+
+  // Synthesis mode — how the individual answers become one consensus:
+  //   "main-judge" : client-side fan-out. All panel models are queried in
+  //                  parallel, then the MAIN model synthesizes one answer and
+  //                  reports an agreement score + whether it overrode dissent.
+  //                  Works across providers (OpenRouter + ollama-cloud).
+  //   "fusion"     : native OpenRouter Fusion. A single OpenRouter request
+  //                  runs all analysis models + a judge server-side. REQUIRES
+  //                  every panel member to use the "openrouter" provider.
+  "synthesis": "main-judge",
+
+  // Per-request token cap for each model call (max_tokens).
+  "maxTokens": 1024,
+
+  // Sampling temperature applied to each call unless a member overrides it.
+  "temperature": 0.3,
+
+  // Advisory agreement threshold (0..1). Surfaced in output; lower scores
+  // signal the panel disagreed and the main model had to arbitrate.
+  "agreementThreshold": 0.6,
+
+  // Per-request timeout in milliseconds (AbortController).
+  "timeoutMs": 60000,
+
+  // OpenRouter parameter-routing strictness (default false).
+  //   true  : OpenRouter only routes to endpoints that support ALL passed
+  //           params (e.g. `reasoning`); if none match it fails hard (404
+  //           "No endpoints found"). Use ONLY when the whole panel is curated
+  //           to reasoning-capable models.
+  //   false : unsupported params (like `reasoning`) are dropped so the model
+  //           still answers — resilient/graceful degradation (recommended).
+  "requireParameters": false,
+
+  // Providers are OpenAI-compatible endpoints. `apiKeyEnv` names the env var
+  // holding the bearer token. You can add your own providers here; user
+  // entries merge with the built-in defaults.
+  "providers": {
+    "openrouter": {
+      "baseURL": "https://openrouter.ai/api/v1",
+      "apiKeyEnv": "OPENROUTER_API_KEY"
+    },
+    "ollama-cloud": {
+      // ollama-cloud is OpenAI-compatible but does NOT support the per-request
+      // `reasoning` object — it is omitted automatically for non-openrouter
+      // providers, so a `reasoning` value below is simply ignored for them.
+      "baseURL": "https://ollama.com/v1",
+      "apiKeyEnv": "OLLAMA_API_KEY"
+    }
+  },
+
+  // The panel: one entry per model. Exactly one member should set
+  // `"main": true`. If none is flagged, the first member becomes main; if
+  // several are flagged, only the first is kept as main.
+  "panel": [
+    {
+      "id": "opus", // short label used in consensus output
+      "provider": "openrouter", // must match a key under `providers`
+      "model": "anthropic/claude-opus-4.6", // provider model slug
+      // reasoning effort (OpenRouter only): none|minimal|low|medium|high|xhigh
+      "reasoning": "high",
+      // "reasoningMaxTokens": 4096, // optional cap on reasoning tokens
+      "main": true // the dominant tie-breaker model
+      // "temperature": 0.2, // optional per-model temperature override
+      // "weight": 1          // reserved for future weighting heuristics
+    },
+    {
+      "id": "grok",
+      "provider": "openrouter",
+      "model": "x-ai/grok-4",
+      "reasoning": "medium"
+    },
+    {
+      // Cross-provider mixing: this member runs on ollama-cloud while the
+      // others run on OpenRouter. Both providers are queried simultaneously.
+      "id": "deepseek",
+      "provider": "ollama-cloud",
+      "model": "deepseek-v4-pro",
+      "reasoning": "low" // ignored for ollama-cloud (no reasoning support)
+    }
+  ]
+}

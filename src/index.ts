@@ -4,10 +4,14 @@ import { createSkillActivation } from "./hooks/skill-activation.js"
 import { createCompactionHandoff } from "./hooks/compaction-handoff.js"
 import { createSessionStart } from "./hooks/session-start.js"
 import { memoryAwareness } from "./hooks/memory-awareness.js"
+import { createConsensusMode } from "./hooks/consensus-mode.js"
 import { handoffSave } from "./tools/handoff-save.js"
 import { handoffLoad } from "./tools/handoff-load.js"
 import { ledgerUpdate } from "./tools/ledger-update.js"
 import { parallelDelegate } from "./tools/parallel-delegate.js"
+import { consensusDeliberate } from "./tools/consensus-deliberate.js"
+import { consensusStatus } from "./tools/consensus-status.js"
+import { consensusToggle } from "./tools/consensus-toggle.js"
 
 const PLUGIN_ID = "opencode-continuous"
 
@@ -18,6 +22,7 @@ const server: Plugin = async (input, _options) => {
   const sessionStartHook = createSessionStart(directory)
   const skillActivation = createSkillActivation(directory)
   const compactionHook = createCompactionHandoff(directory)
+  const consensusMode = createConsensusMode(directory, client)
 
   return {
     "experimental.chat.system.transform": async (inp, out) => {
@@ -25,6 +30,8 @@ const server: Plugin = async (input, _options) => {
       await enforceAgentOnly!(inp, out)
       // Inject handoff/ledger context on session start
       await sessionStartHook!(inp, out)
+      // Inject multi-model consensus instructions when enabled (primary agent only)
+      await consensusMode!(inp, out)
     },
 
     "chat.message": async (inp, out) => {
@@ -41,6 +48,9 @@ const server: Plugin = async (input, _options) => {
       handoff_load: handoffLoad,
       ledger_update: ledgerUpdate,
       parallel_delegate: parallelDelegate,
+      consensus_deliberate: consensusDeliberate,
+      consensus_status: consensusStatus,
+      consensus_toggle: consensusToggle,
     },
   }
 }

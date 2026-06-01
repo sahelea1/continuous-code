@@ -47,6 +47,12 @@
       "critical": [],
       "recommended": ["scout"],
       "command": "/resume"
+    },
+    {
+      "pattern": ["consensus", "multi-model", "multiple models", "panel", "agree", "deliberate"],
+      "critical": [],
+      "recommended": [],
+      "command": "/consensus"
     }
   ]
 }
