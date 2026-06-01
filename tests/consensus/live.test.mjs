@@ -10,6 +10,7 @@ import assert from "node:assert/strict"
 
 import { chatComplete } from "../../dist/consensus/providers.js"
 import { deliberate } from "../../dist/consensus/deliberate.js"
+import { listModels } from "../../dist/consensus/models.js"
 
 const API_KEY = process.env.OPENROUTER_API_KEY
 const BASE_URL = "https://openrouter.ai/api/v1"
@@ -97,6 +98,23 @@ if (!API_KEY) {
 } else {
   // Pick models once, shared across tests (free listing call).
   let cheapPromise = pickCheapModels(2)
+
+  // FREE: no completion tokens, no cost — just the public /models endpoint.
+  test("Test 0: listModels returns non-empty array of {id} (FREE)", async () => {
+    const models = await listModels({
+      baseURL: BASE_URL,
+      apiKey: API_KEY,
+      search: "claude",
+      limit: 5,
+    })
+    console.log(`[live] listModels matched ${models.length} for "claude"`)
+    assert.ok(Array.isArray(models), "returns an array")
+    assert.ok(models.length > 0, "non-empty")
+    for (const m of models) {
+      assert.equal(typeof m.id, "string")
+      assert.ok(m.id.length > 0, "id non-empty")
+    }
+  })
 
   test("Test 1: single chatComplete returns non-empty content", async () => {
     const [cheapest] = await cheapPromise

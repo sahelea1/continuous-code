@@ -2,53 +2,61 @@
 description: Manage and use multi-model consensus mode
 ---
 
-You are managing **multi-model consensus mode**. When active, the orchestrator forms substantive answers, plans, decisions, and analyses by asking MULTIPLE AI models in parallel (across providers) and producing ONE combined consensus answer, with a designated dominant "main" model that breaks ties.
+You are managing **multi-model consensus mode** entirely through tools — the user NEVER hand-edits any file. The plugin writes `consensus.json` programmatically via the `consensus_configure` and `consensus_toggle` tools.
+
+When active, the orchestrator forms substantive answers, plans, decisions, and analyses by asking MULTIPLE AI models in parallel (across providers) and producing ONE combined consensus answer, with a designated dominant "main" model that breaks ties. There is exactly ONE consensus instance (you). Subagents are ordinary single-model workers and never run consensus.
 
 ## Context
 
 Subcommand / request: $ARGUMENTS
 
-If $ARGUMENTS is empty, report the current consensus status (call `consensus_status`) and briefly explain how to enable and configure it.
+## Step 1 — Always show current state first
 
-## What consensus mode is
+Call `consensus_status` to display the current enabled state, synthesis mode, the panel, the main model, and which provider API keys are present.
 
-- A toggleable sub-plugin layered on top of the agent-only orchestration model.
-- A **panel** of models is queried simultaneously (e.g. OpenRouter models AND ollama-cloud models at once), each with its own reasoning effort.
-- One member is the **main** (dominant) model. It synthesizes the final answer, breaks ties, and may override dissent when justified.
-- The result behaves like a normal model answer in OpenCode — the orchestrator bases its reply on the returned consensus.
+## Step 2 — Act on $ARGUMENTS (quick subcommands)
 
-## How to enable / disable
+Parse `$ARGUMENTS` and act immediately via tools:
 
-- Toggle at runtime with the `consensus_toggle` tool: `consensus_toggle { "enabled": true }`.
-- Or edit `consensus.json` at the project root and set `"enabled": true`.
-- Or set the `CONSENSUS_ENABLED` env var (`1`/`true`/`yes` to enable).
+- `on` / `enable` → `consensus_configure action=enable`
+- `off` / `disable` → `consensus_configure action=disable`
+- `status` → just `consensus_status` (already done in step 1)
+- `list [search]` → `consensus_models search=<search>` (omit search to list all)
+- `add <slug> [reasoning]` → `consensus_configure action=add model=<slug> reasoning=<...>`
+- `remove <id|slug>` → `consensus_configure action=remove id=<...>` (or `model=<slug>`)
+- `main <id>` → `consensus_configure action=set-main id=<id>`
+- `synthesis <main-judge|fusion>` → `consensus_configure action=set-synthesis synthesis=<...>`
+- `reasoning <id> <effort>` → `consensus_configure action=set-reasoning id=<id> reasoning=<effort>`
+- `clear` → `consensus_configure action=clear`
 
-## How to configure the panel
+After any change, call `consensus_status` again to confirm the new state.
 
-Edit `consensus.json` (see `consensus.example.jsonc` for a fully commented version):
+## Step 3 — Interactive setup when NO args (or ambiguous)
 
-- `panel`: array of `{ id, provider, model, reasoning?, main? }`. Exactly one member should be `"main": true`.
-- `reasoning`: `none|minimal|low|medium|high|xhigh` — applied for OpenRouter models only (ignored for ollama-cloud).
-- `providers`: OpenAI-compatible endpoints; each names an `apiKeyEnv` for its key. Mix providers freely (OpenRouter + ollama-cloud simultaneously).
-- `synthesis`: `"main-judge"` (client-side fan-out, cross-provider) or `"fusion"` (native OpenRouter Fusion — requires all members on OpenRouter).
+If `$ARGUMENTS` is empty or ambiguous, run an INTERACTIVE setup using the `question` tool:
 
-## Env keys needed
+1. Ask whether to enable consensus mode.
+2. Call `consensus_models` (optionally with a search term the user gives) to show available models with prices, context length, and reasoning support.
+3. Ask which models to include in the panel, which one is the MAIN (dominant tie-breaker), and each model's reasoning effort (`none|minimal|low|medium|high|xhigh`).
+4. Apply via `consensus_configure` calls: `action=add` for each model, `action=set-main` for the chosen main, `action=set-reasoning` as needed, and `action=enable` to turn it on.
+5. Optionally ask synthesis mode (`main-judge` cross-provider, or `fusion` native OpenRouter) and apply with `action=set-synthesis`.
+6. Finish by calling `consensus_status` to confirm.
+
+## Tools (everything is done through these — no manual file edits)
+
+- `consensus_configure` — enable/disable, add/remove panel models, set main, synthesis, per-model reasoning, clear.
+- `consensus_models` — list/search models available for the panel (from OpenRouter).
+- `consensus_status` — inspect config, panel, main, and provider key availability.
+- `consensus_toggle` — quick enable/disable.
+- `consensus_deliberate` — get a combined consensus answer from the panel (runs only in the single primary instance).
+
+## Env keys
 
 - `OPENROUTER_API_KEY` for OpenRouter models.
 - `OLLAMA_API_KEY` for ollama-cloud models (if your endpoint requires auth).
 
-Use `consensus_status` to see which keys are present (it reports `set`/`missing`, never the value).
-
-## When active
-
-The orchestrator deliberates via the `consensus_deliberate` tool to form any substantive answer/plan/decision/analysis, then bases its reply on the returned consensus. All other tool usage and file edits still go through subagents via the `task` tool.
-
-## Tools
-
-- `consensus_deliberate` — get a combined consensus answer from the panel.
-- `consensus_status` — inspect config, panel, and provider key availability.
-- `consensus_toggle` — enable/disable consensus mode.
+`consensus_status` reports each provider key as `set`/`missing`, never the value.
 
 ## Output
 
-Act on $ARGUMENTS: enable/disable, show status, or explain configuration as requested. Confirm the resulting state clearly.
+State explicitly that everything was done through tools — the user never edits files by hand. Confirm the resulting state clearly by ending with the `consensus_status` output.

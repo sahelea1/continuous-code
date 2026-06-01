@@ -5,7 +5,13 @@
   // When enabled, the primary orchestrator forms substantive answers by
   // asking MULTIPLE models in parallel (across providers) and producing ONE
   // combined consensus answer. A designated "main" model is dominant and
-  // breaks ties. Copy this file to `consensus.json` and edit to taste.
+  // breaks ties.
+  //
+  // NOTE: `consensus.json` is normally MANAGED VIA THE TUI — run the
+  // `/consensus` command (or just chat, e.g. "enable consensus with grok-4
+  // and claude-opus, make opus main with high reasoning") and the plugin
+  // writes the file for you via the consensus_configure / consensus_toggle
+  // tools. This template exists for reference and is rarely edited by hand.
   //
   // NEVER put a real API key in this file. Keys are read from environment
   // variables named by each provider's `apiKeyEnv`.

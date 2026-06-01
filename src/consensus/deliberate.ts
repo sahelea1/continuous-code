@@ -12,6 +12,9 @@ import type {
 } from "./types.js"
 import { getMain, resolveApiKey } from "./config.js"
 import { chatComplete } from "./providers.js"
+import { withConsensusLock } from "./lock.js"
+
+export { withConsensusLock } from "./lock.js"
 
 const JUDGE_SYSTEM_PROMPT = `You are the MAIN (dominant) model in a multi-model consensus panel. You are given the user's request and independent answers from each panel model (including your own). Produce ONE final answer that represents the consensus. Where the models agree, reflect that. Where they disagree, you are the tie-breaker — you MAY override the minority, or even the majority, when you judge it correct, but keep the final answer focused and useful. After the final answer, output exactly two trailing lines:
 ---AGREEMENT: <number 0 to 1>
@@ -133,8 +136,19 @@ function parseMarkers(
 
 /**
  * Run a client-side multi-model deliberation and return a single consensus.
+ *
+ * Serialized via withConsensusLock so only one deliberation/fusion runs at a
+ * time within the single consensus instance.
  */
 export async function deliberate(
+  config: ConsensusConfig,
+  prompt: string,
+  opts?: { context?: string },
+): Promise<ConsensusResult> {
+  return withConsensusLock(() => deliberateImpl(config, prompt, opts))
+}
+
+async function deliberateImpl(
   config: ConsensusConfig,
   prompt: string,
   opts?: { context?: string },

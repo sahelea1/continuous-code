@@ -252,6 +252,7 @@ A toggleable sub-plugin that layers on top of the agent-only orchestration model
 - A **panel** of models is queried simultaneously — for example OpenRouter models *and* ollama-cloud models at the same time, each with its own reasoning effort.
 - Exactly one panel member is the **main** (dominant) model. It is the tie-breaker.
 - The orchestrator calls `consensus_deliberate` to form any substantive answer and bases its reply on the returned consensus. All other tool usage and file edits still go through subagents via the `task` tool.
+- **Single instance, no recursion** — there is exactly ONE consensus instance: the primary orchestrator. Subagents it spawns via `task` are ordinary single-model workers; they do NOT run consensus and cannot call `consensus_deliberate`. `consensus_deliberate` refuses to run in a child/sub-agent session, deliberations are serialized one-at-a-time within the process, and the system prompt reinforces that no subagent may run in consensus mode.
 
 ### Configuration
 
@@ -275,7 +276,7 @@ Consensus is configured in `consensus.json` at the project root (default **disab
 }
 ```
 
-- **Toggle** with the `consensus_toggle` tool (`consensus_toggle { "enabled": true }`), by editing `consensus.json`, or via the `CONSENSUS_ENABLED` env var.
+- **Toggle** with the `consensus_toggle` / `consensus_configure` tools (or `/consensus on|off`), or via the `CONSENSUS_ENABLED` env var. You normally never edit `consensus.json` by hand — see *Managing consensus from the OpenCode TUI* below.
 - **Per-model reasoning effort** — `none|minimal|low|medium|high|xhigh`, applied for OpenRouter models only (ignored for ollama-cloud, which has no reasoning object).
 - **Cross-provider mixing** — list members on different providers; OpenRouter and ollama-cloud are queried in parallel.
 - **`requireParameters`** (default `false`) — when `false`, OpenRouter drops unsupported params (e.g. `reasoning`) so models still answer (graceful degradation); set `true` for strict reasoning routing (404s if an endpoint lacks `reasoning`), and only when the whole panel is curated to reasoning-capable models.
@@ -301,6 +302,35 @@ Keys are read only from these env vars (named by each provider's `apiKeyEnv`); n
 | `consensus_deliberate` | Get a combined consensus answer from the panel |
 | `consensus_status` | Inspect config, panel, and provider key availability |
 | `consensus_toggle` | Enable/disable consensus mode |
+| `consensus_configure` | Enable/disable, add/remove panel models, set main/synthesis/reasoning, clear |
+| `consensus_models` | List/search models available for the panel (from OpenRouter) |
+
+### Managing consensus from the OpenCode TUI
+
+You control everything from the terminal — by chatting or via the `/consensus` slash command. **You never hand-edit `consensus.json`**; the plugin writes it programmatically through the tools above (all writes share one serializer).
+
+In plain chat, just describe what you want, e.g.:
+
+> enable consensus with grok-4 and claude-opus, make opus the main with high reasoning
+
+The orchestrator maps that to `consensus_configure` calls (`action=add`, `action=set-main`, `action=set-reasoning`, `action=enable`) and confirms with `consensus_status`.
+
+Via the `/consensus` command, quick subcommands act immediately:
+
+| Subcommand | Effect |
+|------------|--------|
+| `/consensus` (no args) | Interactive setup: lists models, asks which to include, which is main, reasoning per model |
+| `/consensus on` \| `off` | Enable / disable consensus |
+| `/consensus status` | Show current state |
+| `/consensus list [search]` | List/search available models (`consensus_models`) |
+| `/consensus add <slug> [reasoning]` | Add a model to the panel |
+| `/consensus remove <id\|slug>` | Remove a panel member |
+| `/consensus main <id>` | Set the dominant main model |
+| `/consensus synthesis <main-judge\|fusion>` | Set synthesis mode |
+| `/consensus reasoning <id> <effort>` | Set a member's reasoning effort |
+| `/consensus clear` | Empty the panel |
+
+Use `consensus_models` to discover slugs/prices/reasoning support, then `consensus_configure action=add model=<slug>` to add them.
 
 ### Cost note
 
