@@ -333,6 +333,22 @@ else
 fi
 
 # ============================================================================
+# Copy workflow dashboard asset
+# ============================================================================
+ASSETS_SRC="$PLUGIN_DIR/assets"
+ASSETS_DST="$CONFIG_DIR/continuous"
+if [ -d "$ASSETS_SRC" ]; then
+  run "mkdir -p \"$ASSETS_DST\""
+  say "Installing workflow assets to $ASSETS_DST..."
+  for asset_file in "$ASSETS_SRC"/*; do
+    [ -f "$asset_file" ] || continue
+    copy_or_link "$asset_file" "$ASSETS_DST/$(basename "$asset_file")"
+  done
+else
+  say "No assets/ directory found — skipping workflow dashboard asset deploy."
+fi
+
+# ============================================================================
 # Deploy opencode.json
 # ============================================================================
 PROJECT_CONFIG="$PWD/opencode.json"

@@ -15,7 +15,8 @@
     "test:consensus": "node --test tests/consensus/"
   },
   "bin": {
-    "continuous-code-autoconfig": "./dist/autoconfig/cli.js"
+    "continuous-code-autoconfig": "./dist/autoconfig/cli.js",
+    "continuous-code-workflow-tui": "./dist/workflow/tui/cli.js"
   },
   "dependencies": {
     "@opencode-ai/plugin": "^1.14.33",
@@ -31,6 +32,6 @@
     "@types/better-sqlite3": "^7.6.0",
     "@types/pg": "^8.11.0"
   },
-  "files": ["dist/", "agents/", "commands/", "db/", "scripts/", "bootstrap.sh", "install.sh", "uninstall.sh", "continuous-code.config.example.jsonc", "opencode.json", "skill-rules.json", "consensus.json"],
+  "files": ["dist/", "agents/", "commands/", "assets/", "db/", "scripts/", "bootstrap.sh", "install.sh", "uninstall.sh", "continuous-code.config.example.jsonc", "opencode.json", "skill-rules.json", "consensus.json"],
   "license": "MIT"
 }

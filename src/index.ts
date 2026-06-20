@@ -18,6 +18,7 @@ import { autoconfigInspect, autoconfigApply } from "./tools/autoconfig.js"
 import { memoryStore } from "./tools/memory-store.js"
 import { memoryRecall } from "./tools/memory-recall.js"
 import { createWatchdog } from "./watchdog/watchdog.js"
+import { createUltracode } from "./tools/ultracode.js"
 
 const PLUGIN_ID = "opencode-continuous"
 
@@ -75,6 +76,7 @@ const server: Plugin = async (input, _options) => {
       autoconfig_apply: autoconfigApply,
       memory_store: memoryStore,
       memory_recall: memoryRecall,
+      ultracode: createUltracode(client, directory),
     },
   }
 }

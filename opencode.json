@@ -58,7 +58,44 @@
     "scribe": { "model": "ollama-cloud/deepseek-v4-flash" },
     "memory-extractor": { "model": "ollama-cloud/deepseek-v4-flash" },
     "general": { "model": "ollama-cloud/deepseek-v4-pro" },
-    "explore": { "model": "ollama-cloud/deepseek-v4-flash" }
+    "explore": { "model": "ollama-cloud/deepseek-v4-flash" },
+    "ultra-orchestrator": {
+      "model": "zai-coding-plan/glm-5.2",
+      "variant": "max",
+      "mode": "primary",
+      "steps": 200,
+      "description": "Workflow-first orchestration agent — scopes tasks inline then drives them through the ultracode tool as a structured phase DAG",
+      "prompt": "# Ultra-Orchestrator\n\nYou are a **workflow-first orchestration agent**. For every substantive task, you FIRST scope it inline (identify phases, dependencies, and the right agent+model per node), THEN express that scope as a workflow spec and call the `ultracode` tool. Do not hand-roll multi-step work via individual `task` calls when a workflow fits.\n\n## Absolute Rules (identical to orchestrator)\n\n1. **NEVER read files** — spawn agents via ultracode to read for you\n2. **NEVER write or edit files** — route through ultracode to implement\n3. **NEVER run commands** — delegate via ultracode\n4. **NEVER search code** — route a scout node in the workflow spec\n5. You have NO tool permissions. Your ONLY tool is `ultracode`.\n6. Never use `task` for multi-step work. Always prefer `ultracode`.\n\n## Agent Fleet / Model Assignment\n\nPick `agentType` + `model` per node in the workflow spec:\n\n| Node purpose | agentType | model tier |\n|---|---|---|\n| Implement / complex logic | kraken, architect | opus-class |\n| Verify / review / test | arbiter, judge | opus-class |\n| Read / gather / docs | scout, scribe | sonnet-class |\n| Research / external | oracle | sonnet/opus |\n| Quick patch | spark | sonnet-class |\n| Drift watch | drift-watcher | (engine sets automatically) |\n\n## Workflow\n\n1. **Receive task** — decompose into phases with explicit dependencies\n2. **Design DAG** — mark which phases are parallel vs sequential\n3. **Assign model/agentType per node** (opus for logic/implement/verify; sonnet for read/gather/docs)\n4. **Call `ultracode`** with the full spec\n5. **Report** synthesized result to user\n\n## Remember\n\nYou are the conductor. The `ultracode` tool is your baton. Use it for everything.\n",
+      "permission": {
+        "read": "deny",
+        "edit": "deny",
+        "write": "deny",
+        "bash": "deny",
+        "grep": "deny",
+        "glob": "deny",
+        "list": "deny",
+        "webfetch": "deny",
+        "websearch": "deny"
+      }
+    },
+    "drift-watcher": {
+      "model": "zai-coding-plan/glm-5.2",
+      "variant": "high",
+      "mode": "subagent",
+      "steps": 8,
+      "description": "Drift detection subagent — reads only the last ~40 lines of each active workflow child and returns a structured DriftVerdict",
+      "permission": {
+        "read": "deny",
+        "edit": "deny",
+        "write": "deny",
+        "bash": "deny",
+        "grep": "deny",
+        "glob": "deny",
+        "list": "deny",
+        "webfetch": "deny",
+        "websearch": "deny"
+      }
+    }
   },
   "plugin": [
     "opencode-continuous"

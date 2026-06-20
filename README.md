@@ -85,6 +85,65 @@ editor's own modes untouched.
 
 ---
 
+## Workflows / ultracode
+
+continuous-code ships a **dynamic multi-agent workflow engine** that mirrors Claude Code's `agent()/parallel()/pipeline()/phase()` API, grounded entirely in the OpenCode v1 SDK already in the plugin.
+
+### Switching to workflow mode
+
+**Option 1 — switch agent**: press `←` in OpenCode to open the agent picker and select **`ultra-orchestrator`**. It forces every substantive task through the `ultracode` tool as a structured phase DAG.
+
+**Option 2 — inline command**: in any conversation (any agent), run:
+
+```
+/ultracode <your request>
+```
+
+This transforms the current turn into workflow mode for that request. The active agent scopes a phase DAG and calls `ultracode`. No agent switch needed.
+
+### What happens when a workflow runs
+
+1. The orchestrator designs a phase DAG (parallel phases, pipeline stages, or sequential) and calls `ultracode` with the spec.
+2. The engine spawns real child sessions (`session.create`) and drives each agent turn via `session.prompt` — genuine concurrent fan-out, not an instruction string.
+3. A **drift-watcher** subagent round-robins active children every ~90 s, reading only the last ~40 lines each (hard-capped at 40k tokens host-side), and reports or respawns drifted agents.
+4. Context flows between agents as **summaries by reference** (verbatim only on explicit `@full`), so 100s of agents never accumulate a growing shared transcript.
+
+### Live dashboard
+
+While a workflow runs, a local web dashboard streams live phase/agent progress:
+
+```
+http://localhost:7878
+```
+
+It shows phase status (`◯ → ● → ✔`), agent rows (model / tokens / duration), and a drill-down per agent (prompt, last-3 activity, outcome). Reddish theme, animated spinner, no build step — pure HTML/CSS served by `Bun.serve`.
+
+The dashboard is a separate, standalone local server (not embedded in OpenCode's own web UI — OpenCode's plugin API does not currently expose an extension point for that); you'll see a one-time log message with the URL the first time a workflow starts it.
+
+### Terminal UI
+
+Prefer a terminal view over the browser? In another terminal: `continuous-code-workflow-tui` (or
+`continuous-code-workflow-tui --port 7878` if you changed the configured port) — a live terminal view
+of the active workflow: phases → agents → activity/outcome, arrow keys to navigate, Enter to drill in,
+Escape to go back, `q` to quit.
+
+### Config knobs (`continuous-code.config.jsonc`)
+
+| Key | Default | Purpose |
+|---|---|---|
+| `workflow.enabled` | `true` | Master on/off (env `OPENCODE_CONTINUOUS_WORKFLOW=0` also works) |
+| `workflow.dashboardEnabled` | `true` | Start the local web dashboard |
+| `workflow.dashboardPort` | `7878` | TCP port for the dashboard |
+| `workflow.concurrency` | `0` (auto) | Max concurrent agent sessions; 0 = `min(16, max(2, cores-2))` |
+| `workflow.driftEnabled` | `true` | Run the drift-watcher round-robin loop |
+| `workflow.driftIntervalMs` | `90000` | Drift-watcher sweep interval (ms) |
+| `workflow.driftCapTokens` | `40000` | Hard input cap per drift-watcher sweep (chars/4 estimate) |
+| `workflow.perAgentContextCapTokens` | `60000` | Per-agent context injection budget (chars/4 estimate) |
+| `workflow.maxAgents` | `1000` | Hard ceiling on agent sessions per workflow run |
+| `workflow.storeLearnings` | `false` | Store the synthesized result as a memory learning on completion |
+
+---
+
 ## Configuration
 
 Everything pre-install is driven by one file at the repo root:

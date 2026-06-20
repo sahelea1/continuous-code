@@ -146,6 +146,45 @@
   // ========================================================================
   "reuseExistingCcV3": true, // false => force standalone, ignore any CC-v3 db/tldr
 
+  // ========================================================================
+  // WORKFLOWS / ULTRACODE — dynamic multi-agent workflow engine.
+  // Triggered via the /ultracode command or the `ultra-orchestrator` agent.
+  // A local Bun.serve dashboard streams live phase/agent progress via SSE.
+  // All values below are the defaults from src/workflow/config.ts.
+  // Master on/off env override: OPENCODE_CONTINUOUS_WORKFLOW=0|1
+  // ========================================================================
+  "workflow": {
+    "enabled":         true,   // master on/off for the workflow engine
+
+    // Web dashboard (http://localhost:7878 by default): animated reddish
+    // phase/agent view with drill-down, served as a self-contained HTML file.
+    "dashboardEnabled": true,
+    "dashboardPort":    7878,  // TCP port for the local workflow dashboard
+
+    // Max concurrent agent sessions. 0 = auto: min(16, max(2, cpuCores-2)).
+    "concurrency":     0,
+
+    // Drift-watcher: round-robins active workflow children every ~90 s,
+    // reads only the last ~40 lines each, and reports/respawns drifted agents.
+    "driftEnabled":    true,
+    "driftIntervalMs": 90000, // sweep interval in milliseconds (default 90 s)
+
+    // Hard cap on drift-watcher input per sweep (chars/4 token estimate).
+    // Enforced host-side by trimming before sending — cannot be bypassed.
+    "driftCapTokens":  40000, // ≤40k tokens per sweep (drift-watcher ≤40k rule)
+
+    // Per-agent context injection budget (chars/4 token estimate).
+    // Artifact summaries are trimmed oldest-first (non-@full) at this ceiling.
+    "perAgentContextCapTokens": 60000,
+
+    // Hard ceiling on total agent sessions spawned in one workflow run.
+    "maxAgents":       1000,
+
+    // When true, the synthesized workflow result is stored as a
+    // WORKING_SOLUTION learning via the memory backend after completion.
+    "storeLearnings":  false  // off by default to avoid noise
+  },
+
   // Force everything standalone (overrides reuseExistingCcV3 + provision):
   // true => never reuse a CC-v3 db; provision a standalone db (postgres) or use
   // sqlite. Guarantees no dependency on any Continuous-Claude-v3 install.

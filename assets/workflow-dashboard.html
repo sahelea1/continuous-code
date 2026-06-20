@@ -1,0 +1,1003 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ultracode Workflow Dashboard</title>
+<style>
+/* ===================================================================
+   RESET + BASE
+=================================================================== */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg:          #1a0e0e;
+  --bg-panel:    #221212;
+  --bg-selected: #2d1616;
+  --bg-detail:   #1e1010;
+  --border:      #3d2020;
+  --text:        #e8d8d8;
+  --text-dim:    #8a7070;
+  --text-muted:  #6b5050;
+
+  --done:        #7CB342;  /* ✔ completed */
+  --active:      #ff5c5c;  /* ● running / selected */
+  --pending:     #6b5050;  /* ◯ not started counts */
+  --spinner:     #ffb347;  /* gold spinner glyph */
+  --working-bar: #ff5c5c;
+
+  --font-mono: "JetBrains Mono", "Fira Code", "Cascadia Code", ui-monospace, monospace;
+}
+
+html, body {
+  height: 100%;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: 13px;
+  line-height: 1.5;
+  overflow: hidden;
+}
+
+/* ===================================================================
+   LAYOUT
+=================================================================== */
+#app {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+}
+
+/* Header strip */
+#header {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  padding: 8px 16px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-panel);
+}
+
+#header-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--active);
+  letter-spacing: 0.03em;
+}
+
+#header-desc {
+  flex: 1;
+  color: var(--text-dim);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+#header-stats {
+  color: var(--text-muted);
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+/* Working bar (pulsing red strip below header) */
+#working-bar {
+  height: 2px;
+  background: var(--working-bar);
+  opacity: 0;
+  transition: opacity 0.3s;
+  animation: none;
+}
+#working-bar.active {
+  opacity: 1;
+  animation: pulse-bar 1.4s ease-in-out infinite;
+}
+@keyframes pulse-bar {
+  0%, 100% { opacity: 0.3; }
+  50%       { opacity: 1; }
+}
+
+/* Main two-pane body */
+#body {
+  flex: 1;
+  display: flex;
+  min-height: 0;
+  overflow: hidden;
+}
+
+/* Left — phase list */
+#phase-pane {
+  flex: 0 0 280px;
+  display: flex;
+  flex-direction: column;
+  border-right: 1px solid var(--border);
+  overflow-y: auto;
+}
+
+#phase-list {
+  flex: 1;
+  padding: 8px 0;
+}
+
+/* Right — agent pane + detail */
+#right-pane {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  overflow: hidden;
+}
+
+#agent-pane {
+  flex: 1 1 auto;
+  overflow-y: auto;
+  padding: 8px 0;
+}
+
+#detail-pane {
+  flex: 0 0 auto;
+  max-height: 260px;
+  border-top: 1px solid var(--border);
+  background: var(--bg-detail);
+  overflow-y: auto;
+  display: none;
+  padding: 12px 16px;
+}
+#detail-pane.visible { display: block; }
+
+/* Footer */
+#footer {
+  flex: 0 0 auto;
+  padding: 4px 16px;
+  border-top: 1px solid var(--border);
+  background: var(--bg-panel);
+  color: var(--text-muted);
+  font-size: 11px;
+  display: flex;
+  gap: 16px;
+  align-items: center;
+}
+
+#status-pill {
+  margin-left: auto;
+  padding: 1px 8px;
+  border-radius: 10px;
+  font-size: 11px;
+  background: var(--border);
+  color: var(--text-dim);
+}
+#status-pill.connected   { background: #1a2e1a; color: var(--done); }
+#status-pill.reconnecting { background: #2e2a10; color: var(--spinner); }
+#status-pill.done        { background: #1a1a2e; color: #8888ff; }
+
+/* ===================================================================
+   PHASE ROWS
+=================================================================== */
+.phase-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 14px;
+  cursor: pointer;
+  border-left: 2px solid transparent;
+  transition: background 0.1s;
+  user-select: none;
+}
+.phase-row:hover { background: var(--bg-panel); }
+.phase-row.selected {
+  background: var(--bg-selected);
+  border-left-color: var(--active);
+}
+
+.phase-glyph {
+  width: 14px;
+  text-align: center;
+  font-size: 13px;
+  flex-shrink: 0;
+}
+.phase-glyph.done    { color: var(--done); }
+.phase-glyph.active  { color: var(--active); }
+.phase-glyph.pending { color: var(--pending); }
+
+.phase-name {
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.phase-row.active .phase-name { color: var(--active); }
+.phase-row.done  .phase-name  { color: var(--text-dim); }
+
+.phase-counts {
+  font-size: 11px;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+/* Spinner inside phase glyph */
+.spinner-glyph {
+  color: var(--spinner);
+  animation: spin-glyph 0.7s steps(5, end) infinite;
+}
+@keyframes spin-glyph {
+  0%  { content: "✽"; }
+  20% { content: "✶"; }
+  40% { content: "✳"; }
+  60% { content: "✻"; }
+  80% { content: "·"; }
+}
+/* We cycle the text via JS instead of CSS content (cross-browser) */
+
+/* ===================================================================
+   AGENT ROWS
+=================================================================== */
+.agent-header {
+  padding: 6px 16px;
+  font-size: 11px;
+  color: var(--text-muted);
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 4px;
+}
+
+.agent-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 16px;
+  cursor: pointer;
+  border-left: 2px solid transparent;
+  transition: background 0.1s;
+  user-select: none;
+}
+.agent-row:hover { background: var(--bg-panel); }
+.agent-row.selected {
+  background: var(--bg-selected);
+  border-left-color: var(--active);
+}
+
+.agent-status {
+  width: 14px;
+  text-align: center;
+  flex-shrink: 0;
+}
+.agent-status.done    { color: var(--done); }
+.agent-status.active  { color: var(--active); }
+.agent-status.pending { color: var(--pending); }
+.agent-status.failed  { color: #ff4040; }
+
+.agent-name {
+  min-width: 140px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--text);
+}
+.agent-row.selected .agent-name { color: var(--active); }
+.agent-row.done     .agent-name { color: var(--text-dim); }
+
+.agent-model {
+  font-size: 10px;
+  padding: 1px 5px;
+  border-radius: 3px;
+  background: var(--border);
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+.agent-meta {
+  margin-left: auto;
+  font-size: 11px;
+  color: var(--text-muted);
+  white-space: nowrap;
+  display: flex;
+  gap: 6px;
+}
+
+.agent-meta .tok   { color: var(--spinner); }
+.agent-meta .tools { color: var(--text-dim); }
+.agent-meta .dur   { color: var(--pending); }
+
+/* Whimsical spinner label (replaces model badge when active) */
+.spinner-label {
+  font-size: 11px;
+  color: var(--spinner);
+  margin-left: 6px;
+  white-space: nowrap;
+}
+
+/* ===================================================================
+   DETAIL PANE
+=================================================================== */
+#detail-close {
+  float: right;
+  cursor: pointer;
+  color: var(--text-muted);
+  font-size: 14px;
+  line-height: 1;
+  padding: 0 4px;
+  border: none;
+  background: none;
+  color: var(--text-muted);
+}
+#detail-close:hover { color: var(--text); }
+
+#detail-agent-name {
+  font-size: 13px;
+  color: var(--active);
+  margin-bottom: 10px;
+  padding-right: 20px;
+}
+
+.detail-section-label {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-muted);
+  margin-top: 10px;
+  margin-bottom: 4px;
+}
+
+#detail-prompt-toggle {
+  cursor: pointer;
+  color: var(--text-dim);
+  border-left: 2px solid var(--border);
+  padding-left: 8px;
+  font-size: 12px;
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 60px;
+  overflow: hidden;
+  transition: max-height 0.25s ease;
+}
+#detail-prompt-toggle.expanded {
+  max-height: 600px;
+}
+#detail-prompt-toggle::after {
+  content: " … (click to expand)";
+  color: var(--text-muted);
+  font-size: 11px;
+}
+#detail-prompt-toggle.expanded::after {
+  content: " (click to collapse)";
+}
+
+#detail-activity {
+  border-left: 2px solid var(--border);
+  padding-left: 8px;
+  font-size: 12px;
+  color: var(--text-dim);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+#detail-outcome {
+  border-left: 2px solid var(--done);
+  padding-left: 8px;
+  font-size: 12px;
+  color: var(--text-dim);
+  white-space: pre-wrap;
+  word-break: break-word;
+  display: none;
+}
+#detail-outcome.visible { display: block; }
+
+/* ===================================================================
+   EMPTY STATES
+=================================================================== */
+.empty-state {
+  padding: 32px 20px;
+  color: var(--text-muted);
+  text-align: center;
+  font-size: 12px;
+  line-height: 2;
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--text-muted); }
+</style>
+</head>
+<body>
+
+<div id="app">
+  <!-- ── Header ── -->
+  <div id="header">
+    <span id="header-title">✦ ultracode</span>
+    <span id="header-desc">Waiting for workflow…</span>
+    <span id="header-stats"></span>
+  </div>
+
+  <!-- Working bar -->
+  <div id="working-bar"></div>
+
+  <!-- ── Body: two-pane ── -->
+  <div id="body">
+
+    <!-- Left: phase list -->
+    <div id="phase-pane">
+      <div id="phase-list">
+        <div class="empty-state">No phases yet.<br>Start a workflow with /ultracode.</div>
+      </div>
+    </div>
+
+    <!-- Right: agent rows + detail -->
+    <div id="right-pane">
+      <div id="agent-pane">
+        <div class="empty-state" id="agent-empty">Select a phase to see its agents.</div>
+        <div id="agent-list" style="display:none"></div>
+      </div>
+
+      <div id="detail-pane">
+        <button id="detail-close" title="Close detail (Esc)">✕</button>
+        <div id="detail-agent-name"></div>
+
+        <div class="detail-section-label">Prompt</div>
+        <div id="detail-prompt-toggle"></div>
+
+        <div class="detail-section-label">Recent Activity</div>
+        <div id="detail-activity">—</div>
+
+        <div class="detail-section-label" id="detail-outcome-label" style="display:none">Outcome</div>
+        <div id="detail-outcome"></div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- ── Footer ── -->
+  <div id="footer">
+    <span>Click phase → see agents · Click agent → detail</span>
+    <span id="status-pill">Connecting…</span>
+  </div>
+</div>
+
+<script>
+// ==========================================================================
+// STATE
+// ==========================================================================
+
+/** @typedef {{ idx: number, title: string, mode: string, agentCount: number,
+ *              doneCount: number, failCount: number, startedAt: string|null,
+ *              doneAt: string|null }} PhaseState */
+/** @typedef {{ label: string, agentType: string, model: string, sessionId: string,
+ *              status: 'pending'|'active'|'done'|'failed',
+ *              tokensEst: number, durationMs: number|null,
+ *              prompt: string, activity: string[], outcome: string|null,
+ *              startedAt: string|null }} AgentState */
+
+const state = {
+  /** @type {Map<number, PhaseState>} */
+  phases: new Map(),
+  /** @type {Map<number, Map<string, AgentState>>} */
+  agents: new Map(),  // phaseIdx -> label -> AgentState
+  workflowTitle: '',
+  workflowDesc: '',
+  isRunning: false,
+  doneAgents: 0,
+  totalAgents: 0,
+  failedAgents: 0,
+  startedAt: null,
+  /** Currently selected phase index */
+  selectedPhase: null,
+  /** Currently selected agent label (in selected phase) */
+  selectedAgent: null,
+};
+
+// ==========================================================================
+// WHIMSICAL LABELS + SPINNER
+// ==========================================================================
+
+const WHIMSICAL = [
+  'Nebulizing…', 'Kneading…', 'Simmering…', 'Percolating…',
+  'Crystallizing…', 'Fermenting…', 'Distilling…', 'Osmosing…',
+  'Synthesizing…', 'Calcinating…', 'Ruminating…', 'Incubating…',
+];
+const SPINNER_GLYPHS = ['✽', '✶', '✳', '✻', '·'];
+
+let spinnerFrame = 0;
+let whimsicalIdx = 0;
+const spinnerTimers = new Map(); // elementId -> intervalId
+
+function startSpinner(el) {
+  if (!el) return;
+  const id = setInterval(() => {
+    spinnerFrame = (spinnerFrame + 1) % SPINNER_GLYPHS.length;
+    el.textContent = SPINNER_GLYPHS[spinnerFrame];
+  }, 140);
+  el.dataset.timerId = id;
+}
+
+function stopSpinner(el) {
+  if (!el) return;
+  const id = el.dataset.timerId;
+  if (id) clearInterval(Number(id));
+  el.textContent = '';
+}
+
+function nextWhimsical() {
+  const label = WHIMSICAL[whimsicalIdx % WHIMSICAL.length];
+  whimsicalIdx++;
+  return label;
+}
+
+// ==========================================================================
+// DOM HELPERS
+// ==========================================================================
+
+const $ = (id) => document.getElementById(id);
+function el(tag, cls, text) {
+  const e = document.createElement(tag);
+  if (cls) e.className = cls;
+  if (text !== undefined) e.textContent = text;
+  return e;
+}
+
+function setStatusPill(text, className) {
+  const p = $('status-pill');
+  p.textContent = text;
+  p.className = className || '';
+}
+
+function setWorkingBar(active) {
+  const bar = $('working-bar');
+  if (active) bar.classList.add('active');
+  else        bar.classList.remove('active');
+}
+
+function fmtDur(ms) {
+  if (ms == null) return '';
+  if (ms < 1000) return `${ms}ms`;
+  const s = Math.round(ms / 1000);
+  if (s < 60) return `${s}s`;
+  const m = Math.floor(s / 60), rs = s % 60;
+  return `${m}m ${rs}s`;
+}
+function fmtTok(n) {
+  if (!n) return '—';
+  if (n >= 1000) return `${(n / 1000).toFixed(1)}k`;
+  return String(n);
+}
+
+// ==========================================================================
+// RENDER
+// ==========================================================================
+
+function renderPhaseList() {
+  const list = $('phase-list');
+  list.innerHTML = '';
+
+  if (state.phases.size === 0) {
+    const d = el('div', 'empty-state');
+    d.textContent = 'No phases yet.\nStart a workflow with /ultracode.';
+    list.appendChild(d);
+    return;
+  }
+
+  for (const [idx, phase] of state.phases) {
+    const row = el('div', 'phase-row');
+    row.dataset.idx = idx;
+
+    // Determine status
+    const isDone = phase.doneCount + phase.failCount >= phase.agentCount && phase.agentCount > 0;
+    const isActive = !isDone && (phase.doneCount > 0 || phase.failCount > 0 ||
+      (state.agents.get(idx) && [...state.agents.get(idx).values()].some(a => a.status === 'active')));
+
+    if (isDone)       row.classList.add('done');
+    else if (isActive) row.classList.add('active');
+
+    if (state.selectedPhase === idx) row.classList.add('selected');
+
+    // Glyph
+    const glyph = el('span', 'phase-glyph');
+    if (isDone) {
+      glyph.textContent = '✔';
+      glyph.classList.add('done');
+    } else if (isActive) {
+      glyph.classList.add('active');
+      // Animated spinner glyph — update via interval
+      glyph.textContent = SPINNER_GLYPHS[spinnerFrame];
+      glyph.classList.add('spinner-phase-glyph');
+    } else {
+      glyph.textContent = '◯';
+      glyph.classList.add('pending');
+    }
+
+    const name = el('span', 'phase-name', phase.title);
+    const counts = el('span', 'phase-counts',
+      phase.agentCount > 0 ? `${phase.doneCount + phase.failCount}/${phase.agentCount}` : '');
+
+    row.appendChild(glyph);
+    row.appendChild(name);
+    row.appendChild(counts);
+
+    row.addEventListener('click', () => selectPhase(idx));
+    list.appendChild(row);
+  }
+}
+
+function renderAgentList() {
+  const empty = $('agent-empty');
+  const list  = $('agent-list');
+
+  if (state.selectedPhase === null) {
+    empty.style.display = '';
+    list.style.display = 'none';
+    return;
+  }
+
+  const agents = state.agents.get(state.selectedPhase);
+  empty.style.display = 'none';
+  list.style.display = '';
+  list.innerHTML = '';
+
+  const phase = state.phases.get(state.selectedPhase);
+  if (phase) {
+    const hdr = el('div', 'agent-header',
+      `${phase.title}  ·  ${phase.mode}  ·  ${phase.agentCount} agent${phase.agentCount !== 1 ? 's' : ''}`);
+    list.appendChild(hdr);
+  }
+
+  if (!agents || agents.size === 0) {
+    const e = el('div', 'empty-state', 'No agents started in this phase yet.');
+    list.appendChild(e);
+    return;
+  }
+
+  for (const [label, agent] of agents) {
+    const row = el('div', 'agent-row');
+    row.dataset.label = label;
+
+    if (agent.status === 'done')   row.classList.add('done');
+    if (agent.status === 'active') row.classList.add('active');
+    if (label === state.selectedAgent) row.classList.add('selected');
+
+    // Status glyph
+    const status = el('span', `agent-status ${agent.status}`);
+    if (agent.status === 'done')    status.textContent = '✔';
+    else if (agent.status === 'failed') status.textContent = '✗';
+    else if (agent.status === 'active') status.textContent = '●';
+    else                                status.textContent = '◯';
+
+    // Name
+    const name = el('span', 'agent-name', label);
+
+    // Model badge
+    const modelBadge = el('span', 'agent-model', agent.model || '—');
+
+    // Whimsical spinner label when active
+    let spinnerLbl = null;
+    if (agent.status === 'active') {
+      spinnerLbl = el('span', 'spinner-label', nextWhimsical());
+    }
+
+    // Meta (tok · tools · dur)
+    const meta = el('span', 'agent-meta');
+    if (agent.status !== 'pending') {
+      const tok = el('span', 'tok', fmtTok(agent.tokensEst) + ' tok');
+      const dur = el('span', 'dur', agent.durationMs ? fmtDur(agent.durationMs) : '…');
+      meta.appendChild(tok);
+      meta.appendChild(dur);
+    }
+
+    row.appendChild(status);
+    row.appendChild(name);
+    row.appendChild(modelBadge);
+    if (spinnerLbl) row.appendChild(spinnerLbl);
+    row.appendChild(meta);
+
+    row.addEventListener('click', () => selectAgent(label));
+    list.appendChild(row);
+  }
+}
+
+function renderDetail() {
+  const pane = $('detail-pane');
+
+  if (state.selectedPhase === null || state.selectedAgent === null) {
+    pane.classList.remove('visible');
+    return;
+  }
+
+  const agents = state.agents.get(state.selectedPhase);
+  const agent = agents && agents.get(state.selectedAgent);
+  if (!agent) {
+    pane.classList.remove('visible');
+    return;
+  }
+
+  pane.classList.add('visible');
+
+  $('detail-agent-name').textContent =
+    `${agent.label}  ·  ${agent.agentType}  ·  ${agent.model || '—'}` +
+    (agent.durationMs ? `  ·  ${fmtDur(agent.durationMs)}` : '');
+
+  const promptEl = $('detail-prompt-toggle');
+  promptEl.textContent = agent.prompt || '(no prompt recorded)';
+
+  $('detail-activity').textContent =
+    agent.activity.length ? agent.activity.slice(-3).join('\n') : '—';
+
+  const outcomeEl   = $('detail-outcome');
+  const outcomeLbl  = $('detail-outcome-label');
+  if (agent.outcome) {
+    outcomeLbl.style.display = '';
+    outcomeEl.textContent = agent.outcome;
+    outcomeEl.classList.add('visible');
+  } else {
+    outcomeLbl.style.display = 'none';
+    outcomeEl.classList.remove('visible');
+  }
+}
+
+function render() {
+  renderPhaseList();
+  renderAgentList();
+  renderDetail();
+
+  // Header
+  const title = state.workflowTitle || 'ultracode';
+  $('header-title').textContent = '✦ ' + title;
+  if (state.workflowDesc) $('header-desc').textContent = state.workflowDesc;
+
+  const total = state.totalAgents;
+  const done  = state.doneAgents;
+  const elapsed = state.startedAt
+    ? fmtDur(Date.now() - new Date(state.startedAt).getTime())
+    : '';
+  $('header-stats').textContent = total > 0
+    ? `${done}/${total} agents · ${elapsed}`
+    : (elapsed ? elapsed : '');
+
+  setWorkingBar(state.isRunning);
+}
+
+// Spin all active phase glyphs
+setInterval(() => {
+  spinnerFrame = (spinnerFrame + 1) % SPINNER_GLYPHS.length;
+  for (const g of document.querySelectorAll('.spinner-phase-glyph')) {
+    g.textContent = SPINNER_GLYPHS[spinnerFrame];
+  }
+}, 140);
+
+// ==========================================================================
+// INTERACTION
+// ==========================================================================
+
+function selectPhase(idx) {
+  state.selectedPhase = idx;
+  state.selectedAgent = null;
+  $('detail-pane').classList.remove('visible');
+  render();
+}
+
+function selectAgent(label) {
+  state.selectedAgent = label;
+  render();
+  $('detail-pane').scrollTop = 0;
+}
+
+$('detail-close').addEventListener('click', () => {
+  state.selectedAgent = null;
+  render();
+});
+
+$('detail-prompt-toggle').addEventListener('click', function () {
+  this.classList.toggle('expanded');
+});
+
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') {
+    if (state.selectedAgent !== null) {
+      state.selectedAgent = null;
+      render();
+    } else if (state.selectedPhase !== null) {
+      state.selectedPhase = null;
+      render();
+    }
+  }
+});
+
+// ==========================================================================
+// EVENT HANDLING — apply WorkflowEvents to state
+// ==========================================================================
+
+/**
+ * Expected SSE message shapes (one JSON object per `data:` line):
+ *
+ * { type: "phase.start",    phaseIdx, title, mode, agentCount, timestamp }
+ * { type: "agent.start",    phaseIdx, agentLabel, agentType, model, sessionId, timestamp }
+ * { type: "agent.activity", phaseIdx, agentLabel, sessionId, preview, timestamp }
+ * { type: "agent.done",     phaseIdx, agentLabel, sessionId, artifactId,
+ *                           tokensEst, durationMs, ok, timestamp }
+ * { type: "workflow.done",  title, phasesCompleted, agentsCompleted, agentsFailed,
+ *                           durationMs, result, timestamp }
+ *
+ * The server also sends a synthetic "state.seed" event carrying the full
+ * snapshot from GET /state so late joiners can bootstrap:
+ * { type: "state.seed", events: WorkflowEvent[] }
+ */
+
+function applyEvent(ev) {
+  try {
+    switch (ev.type) {
+      case 'phase.start': {
+        state.phases.set(ev.phaseIdx, {
+          idx:       ev.phaseIdx,
+          title:     ev.title,
+          mode:      ev.mode,
+          agentCount: ev.agentCount,
+          doneCount: 0,
+          failCount: 0,
+          startedAt: ev.timestamp,
+          doneAt:    null,
+        });
+        if (!state.agents.has(ev.phaseIdx)) {
+          state.agents.set(ev.phaseIdx, new Map());
+        }
+        state.totalAgents += ev.agentCount;
+        state.isRunning = true;
+        if (!state.startedAt) state.startedAt = ev.timestamp;
+        // Auto-select the first phase that appears
+        if (state.selectedPhase === null) state.selectedPhase = ev.phaseIdx;
+        break;
+      }
+
+      case 'agent.start': {
+        let phaseAgents = state.agents.get(ev.phaseIdx);
+        if (!phaseAgents) {
+          phaseAgents = new Map();
+          state.agents.set(ev.phaseIdx, phaseAgents);
+        }
+        phaseAgents.set(ev.agentLabel, {
+          label:      ev.agentLabel,
+          agentType:  ev.agentType,
+          model:      ev.model,
+          sessionId:  ev.sessionId,
+          status:     'active',
+          tokensEst:  0,
+          durationMs: null,
+          prompt:     ev.prompt || '',
+          activity:   [],
+          outcome:    null,
+          startedAt:  ev.timestamp,
+        });
+        break;
+      }
+
+      case 'agent.activity': {
+        const agts = state.agents.get(ev.phaseIdx);
+        const a = agts && agts.get(ev.agentLabel);
+        if (a) {
+          a.activity.push(ev.preview);
+          if (a.activity.length > 20) a.activity.shift();
+        }
+        break;
+      }
+
+      case 'agent.done': {
+        const agts = state.agents.get(ev.phaseIdx);
+        const a = agts && agts.get(ev.agentLabel);
+        if (a) {
+          a.status     = ev.ok ? 'done' : 'failed';
+          a.tokensEst  = ev.tokensEst || 0;
+          a.durationMs = ev.durationMs || 0;
+          a.outcome    = ev.ok ? `Completed — artifact ${ev.artifactId}` : 'Failed';
+        }
+        const phase = state.phases.get(ev.phaseIdx);
+        if (phase) {
+          if (ev.ok) phase.doneCount++;
+          else       phase.failCount++;
+        }
+        state.doneAgents++;
+        if (!ev.ok) state.failedAgents++;
+        break;
+      }
+
+      case 'workflow.done': {
+        state.isRunning = false;
+        state.workflowTitle = ev.title || state.workflowTitle;
+        state.workflowDesc = `Done · ${ev.agentsCompleted} agents · ${fmtDur(ev.durationMs)}`;
+        setStatusPill('Done', 'done');
+        break;
+      }
+
+      case 'state.seed': {
+        // Server sent us the full history snapshot — replay all events in order
+        if (Array.isArray(ev.events)) {
+          // Reset first to avoid double-counting
+          state.phases.clear();
+          state.agents.clear();
+          state.doneAgents   = 0;
+          state.totalAgents  = 0;
+          state.failedAgents = 0;
+          state.isRunning    = false;
+          state.startedAt    = null;
+          for (const e of ev.events) applyEvent(e);
+        }
+        break;
+      }
+
+      default:
+        break;
+    }
+  } catch (err) {
+    console.warn('[dashboard] applyEvent error:', err, ev);
+  }
+}
+
+// ==========================================================================
+// SSE CONNECTION WITH AUTO-RECONNECT
+// ==========================================================================
+
+let sse = null;
+let reconnectDelay = 1000;
+let reconnectTimer  = null;
+let seeded = false;
+
+async function seedFromState() {
+  try {
+    const resp = await fetch('/state');
+    if (!resp.ok) return;
+    const data = await resp.json();
+    // data shape: { events: WorkflowEvent[] } or { snapshot: ... }
+    const events = data.events || data.snapshot || [];
+    if (Array.isArray(events) && events.length > 0) {
+      applyEvent({ type: 'state.seed', events });
+      render();
+    }
+    seeded = true;
+  } catch {
+    // State endpoint not yet ready; SSE stream will carry events anyway.
+  }
+}
+
+function connect() {
+  if (sse) {
+    try { sse.close(); } catch { /* ignore */ }
+    sse = null;
+  }
+
+  setStatusPill('Connecting…', 'reconnecting');
+
+  sse = new EventSource('/events');
+
+  sse.addEventListener('open', async () => {
+    setStatusPill('Live', 'connected');
+    reconnectDelay = 1000;
+    if (!seeded) await seedFromState();
+  });
+
+  sse.addEventListener('message', (e) => {
+    try {
+      const ev = JSON.parse(e.data);
+      applyEvent(ev);
+      render();
+    } catch (err) {
+      console.warn('[dashboard] SSE parse error:', err, e.data);
+    }
+  });
+
+  sse.addEventListener('error', () => {
+    setStatusPill('Reconnecting…', 'reconnecting');
+    try { sse.close(); } catch { /* ignore */ }
+    sse = null;
+    seeded = false;
+    if (reconnectTimer) clearTimeout(reconnectTimer);
+    reconnectTimer = setTimeout(() => {
+      reconnectDelay = Math.min(reconnectDelay * 1.6, 15000);
+      connect();
+    }, reconnectDelay);
+  });
+}
+
+// ==========================================================================
+// BOOT
+// ==========================================================================
+
+connect();
+render();
+</script>
+</body>
+</html>
