@@ -163,12 +163,15 @@
   // The workflow worker agents (scout, oracle, sleuth, kraken, spark, arbiter,
   // judge, plan-agent, phoenix, architect, scribe, memory-extractor, general,
   // explore) run with their permissions PRE-ALLOWED (read/edit/write/bash/grep/
-  // glob/list/webfetch/websearch = "allow"). This is INTENTIONAL: the engine
-  // spawns these workers head-less via the OpenCode SDK (client.session.prompt),
-  // where there is no interactive session to answer a permission prompt — so a
-  // prompt would simply hang the run. Pre-allowing them is this project's
-  // analogue to `--dangerously-skip-permissions`, giving uninterrupted
-  // end-to-end automation. The delegation-only agents (orchestrator,
+  // glob/list/webfetch/websearch + doom_loop + external_directory = "allow").
+  // doom_loop and external_directory are the only two capabilities OpenCode
+  // defaults to "ask", so they are explicitly allowed to guarantee NO prompts
+  // ever appear. This is INTENTIONAL: the engine spawns these workers head-less
+  // via the OpenCode SDK (client.session.prompt), where there is no interactive
+  // session to answer a permission prompt — so a prompt would simply hang the
+  // run. Pre-allowing them is this project's config-based equivalent of
+  // `--dangerously-skip-permissions` (which itself only exists on `opencode run`,
+  // not the interactive TUI), giving uninterrupted end-to-end automation. The delegation-only agents (orchestrator,
   // ultra-orchestrator, drift-watcher) still DENY all built-in tools, and
   // ultra-orchestrator is restricted to its single `ultracode` tool.
   // This is wired in opencode.json: a top-level "permission" allow block is the

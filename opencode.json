@@ -110,6 +110,8 @@
     "glob": "allow",
     "list": "allow",
     "webfetch": "allow",
-    "websearch": "allow"
+    "websearch": "allow",
+    "doom_loop": "allow",
+    "external_directory": "allow"
   }
 }
