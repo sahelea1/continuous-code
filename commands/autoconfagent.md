@@ -39,7 +39,7 @@ for models whose `reasoning` flag is true / that declare `variants`.
 
 Assign every agent using this **ROLE TAXONOMY**:
 
-- **Orchestrators** — `build`, `plan`, `orchestrator`:
+- **Orchestrator** — `orchestrator`:
   The single MOST capable / strongest-reasoning available model, at the HIGHEST
   effort (`xhigh` if the model supports it, otherwise `max`).
 - **Heavy reasoning subagents** — `oracle`, `sleuth`, `kraken`, `judge`,
@@ -58,7 +58,7 @@ Assign every agent using this **ROLE TAXONOMY**:
 - Respect any preference in `$ARGUMENTS` (e.g. "prefer anthropic") as long as that
   provider is authenticated.
 - Concrete example: on a host where only **anthropic** is authenticated, set the
-  orchestrators (`build`, `plan`, `orchestrator`) to the strongest model such as
+  orchestrator (`orchestrator`) to the strongest model such as
   `anthropic/claude-opus-4-8` at `xhigh`; the heavy subagents to
   `anthropic/claude-sonnet-4-6` at `medium`/`high`; and the light subagents to a fast
   model such as `anthropic/claude-haiku-4-6` at `low`.
@@ -70,8 +70,6 @@ Call `autoconfig_apply` once with the full `assignments` map, e.g.:
 ```json
 {
   "assignments": {
-    "build":            { "model": "anthropic/claude-opus-4-8",  "effort": "xhigh" },
-    "plan":             { "model": "anthropic/claude-opus-4-8",  "effort": "xhigh" },
     "orchestrator":     { "model": "anthropic/claude-opus-4-8",  "effort": "xhigh" },
     "oracle":           { "model": "anthropic/claude-sonnet-4-6", "effort": "high" },
     "sleuth":           { "model": "anthropic/claude-sonnet-4-6", "effort": "high" },

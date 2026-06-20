@@ -45,5 +45,20 @@ export function createCompactionHandoff(directory: string): Hooks["experimental.
     // Append a continuation note into the compaction context so the LLM
     // knows a handoff was persisted.
     output.context.push(`A handoff was saved to ${handoffPath}. Continue from where you left off.`)
+
+    // optional: persist a learning so it survives beyond the handoff file
+    try {
+      const { getMemoryBackend } = await import("../memory/backend.js")
+      const backend = await getMemoryBackend(directory)
+      if (backend.kind !== "none") {
+        const content = `Session ${sessionSlug} compacted. Done: ` +
+          (output.context.slice(0, 10).join("; ") || "(no recorded context)")
+        await backend.store({
+          session_id: sessionSlug,
+          content,
+          metadata: { learning_type: "OPEN_THREAD", context: "session compaction", tags: ["compaction", "handoff"] },
+        })
+      }
+    } catch { /* never block compaction on memory errors */ }
   }
 }

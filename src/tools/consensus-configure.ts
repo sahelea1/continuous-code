@@ -5,6 +5,12 @@ import {
   upsertPanelMember,
   removePanelMember,
   setMainMember,
+  setTemperature,
+  setMaxTokens,
+  setAgreementThreshold,
+  setTimeoutMs,
+  setRequireParameters,
+  upsertProvider,
 } from "../consensus/config.js"
 import type { ConsensusConfig, ReasoningEffort } from "../consensus/types.js"
 
@@ -17,6 +23,12 @@ const ACTIONS = [
   "set-synthesis",
   "set-reasoning",
   "clear",
+  "set-temperature",
+  "set-max-tokens",
+  "set-agreement-threshold",
+  "set-timeout",
+  "set-require-parameters",
+  "set-provider",
 ] as const
 
 const REASONING_VALUES: ReasoningEffort[] = [
@@ -46,6 +58,11 @@ function summarize(config: ConsensusConfig, action: string): string {
     `Action: ${action}`,
     `Enabled: ${config.enabled ? "yes" : "no"}`,
     `Synthesis: ${config.synthesis}`,
+    `Temperature: ${config.temperature}`,
+    `Max tokens: ${config.maxTokens}`,
+    `Agreement threshold: ${config.agreementThreshold}`,
+    `Timeout: ${config.timeoutMs}ms`,
+    `Require parameters: ${config.requireParameters ? "yes" : "no"}`,
     "Panel:",
     renderPanel(config),
   ].join("\n")
@@ -53,12 +70,12 @@ function summarize(config: ConsensusConfig, action: string): string {
 
 export const consensusConfigure = tool({
   description:
-    "Manage multi-model consensus configuration programmatically (no hand-editing files): enable/disable, add/remove panel models, set the main model, synthesis mode, and per-model reasoning effort.",
+    "Manage multi-model consensus configuration programmatically (no hand-editing files): enable/disable, add/remove panel models, set the main model, synthesis mode, per-model reasoning effort, and advanced settings (temperature, maxTokens, agreementThreshold, timeoutMs, requireParameters, custom providers).",
   args: {
     action: tool.schema
       .string()
       .describe(
-        "One of: enable | disable | add | remove | set-main | set-synthesis | set-reasoning | clear",
+        "One of: enable | disable | add | remove | set-main | set-synthesis | set-reasoning | clear | set-temperature | set-max-tokens | set-agreement-threshold | set-timeout | set-require-parameters | set-provider",
       ),
     model: tool.schema
       .string()
@@ -67,7 +84,7 @@ export const consensusConfigure = tool({
     provider: tool.schema
       .string()
       .optional()
-      .describe("Provider key (default 'openrouter')"),
+      .describe("Provider key (for add: default 'openrouter'; for set-provider: the key to add/update)"),
     id: tool.schema
       .string()
       .optional()
@@ -80,6 +97,24 @@ export const consensusConfigure = tool({
       .string()
       .optional()
       .describe("Synthesis mode: main-judge | fusion"),
+    value: tool.schema
+      .number()
+      .optional()
+      .describe(
+        "Numeric value for set-temperature (0–2), set-max-tokens (positive int), set-agreement-threshold (0–1), or set-timeout (positive int ms).",
+      ),
+    enabled: tool.schema
+      .boolean()
+      .optional()
+      .describe("Boolean flag for set-require-parameters (true|false)."),
+    baseURL: tool.schema
+      .string()
+      .optional()
+      .describe("Base URL for set-provider (required when adding a new provider)."),
+    apiKeyEnv: tool.schema
+      .string()
+      .optional()
+      .describe("Env var name holding the API key for set-provider."),
   },
   async execute(args, context) {
     const action = (args.action ?? "").trim()
@@ -203,6 +238,101 @@ export const consensusConfigure = tool({
       case "clear":
         config.panel = []
         break
+
+      case "set-temperature": {
+        if (args.value === undefined) {
+          return {
+            title: "Missing value",
+            output: "`set-temperature` requires a numeric `value` in [0, 2].",
+          }
+        }
+        try {
+          config = setTemperature(config, args.value)
+        } catch (err) {
+          const message = err instanceof Error ? err.message : String(err)
+          return { title: "Invalid temperature", output: message }
+        }
+        break
+      }
+
+      case "set-max-tokens": {
+        if (args.value === undefined) {
+          return {
+            title: "Missing value",
+            output: "`set-max-tokens` requires a positive integer `value`.",
+          }
+        }
+        try {
+          config = setMaxTokens(config, args.value)
+        } catch (err) {
+          const message = err instanceof Error ? err.message : String(err)
+          return { title: "Invalid maxTokens", output: message }
+        }
+        break
+      }
+
+      case "set-agreement-threshold": {
+        if (args.value === undefined) {
+          return {
+            title: "Missing value",
+            output: "`set-agreement-threshold` requires a numeric `value` in [0, 1].",
+          }
+        }
+        try {
+          config = setAgreementThreshold(config, args.value)
+        } catch (err) {
+          const message = err instanceof Error ? err.message : String(err)
+          return { title: "Invalid agreementThreshold", output: message }
+        }
+        break
+      }
+
+      case "set-timeout": {
+        if (args.value === undefined) {
+          return {
+            title: "Missing value",
+            output: "`set-timeout` requires a positive integer `value` (milliseconds).",
+          }
+        }
+        try {
+          config = setTimeoutMs(config, args.value)
+        } catch (err) {
+          const message = err instanceof Error ? err.message : String(err)
+          return { title: "Invalid timeoutMs", output: message }
+        }
+        break
+      }
+
+      case "set-require-parameters": {
+        if (args.enabled === undefined) {
+          return {
+            title: "Missing enabled",
+            output: "`set-require-parameters` requires a boolean `enabled` flag.",
+          }
+        }
+        config = setRequireParameters(config, args.enabled)
+        break
+      }
+
+      case "set-provider": {
+        const providerKey = args.provider
+        if (!providerKey) {
+          return {
+            title: "Missing provider",
+            output: "`set-provider` requires a `provider` key.",
+          }
+        }
+        try {
+          config = upsertProvider(config, providerKey, {
+            baseURL: args.baseURL,
+            apiKeyEnv: args.apiKeyEnv,
+          })
+        } catch (err) {
+          const message = err instanceof Error ? err.message : String(err)
+          return { title: "Provider error", output: message }
+        }
+        break
+      }
     }
 
     saveConsensusConfig(context.directory, config)

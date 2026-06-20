@@ -1,0 +1,30 @@
+# Standalone pgvector for continuous-code memory (opt-in: memory.mode=postgres,
+# provision=docker). Defaults target the STANDALONE db (continuous_code on :5433)
+# to avoid clashing with a CC-v3 postgres (continuous_claude on :5432). To target
+# CC-v3 values instead, set the CC_PG_* env vars before `docker compose up`.
+#
+# The canonical schema (db/schema.sql, owned by the memory subsystem) is mounted
+# into the init dir; postgres applies it on first cluster init. The backend also
+# re-applies it idempotently on first open, so a reused/pre-existing db is fine.
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: ${CC_PG_CONTAINER:-continuous-code-postgres}
+    environment:
+      POSTGRES_USER:     ${CC_PG_USER:-continuous}
+      POSTGRES_PASSWORD: ${CC_PG_PASSWORD:-continuous_dev}
+      POSTGRES_DB:       ${CC_PG_DB:-continuous_code}
+    ports:
+      - "${CC_PG_PORT:-5433}:5432"
+    volumes:
+      - continuous_code_data:/var/lib/postgresql/data
+      - ./schema.sql:/docker-entrypoint-initdb.d/01-schema.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${CC_PG_USER:-continuous} -d ${CC_PG_DB:-continuous_code}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+volumes:
+  continuous_code_data:

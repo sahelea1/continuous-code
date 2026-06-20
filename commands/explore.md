@@ -21,7 +21,7 @@ Call `parallel_delegate` with the following array of `{agent, prompt}` pairs to 
 [
   {
     "agent": "scout",
-    "prompt": "Explore the structure of this codebase.\n\nFocus: $ARGUMENTS (or general structure if not specified)\n\nUse tldr and file reading to map:\n1. File tree and directory organization\n2. Entry points (main, cli, app, index files)\n3. Key modules and their responsibilities\n4. How the codebase is organized (layers, features, domains)\n\nOutput a structured summary with file:line references for key components."
+    "prompt": "Explore the structure of this codebase.\n\nFocus: $ARGUMENTS (or general structure if not specified)\n\nMap the following using available tools:\n1. File tree and directory organization\n2. Entry points (main, cli, app, index files)\n3. Key modules and their responsibilities\n4. How the codebase is organized (layers, features, domains)\n\nTool guidance (use what is available):\n- If `tldr` is on PATH: prefer `tldr tree` and `tldr structure` for efficient mapping (extras.tldr).\n- Otherwise fall back to native tools: Glob for file discovery, Read for key files, Grep for patterns.\n\nOutput a structured summary with file:line references for key components."
   },
   {
     "agent": "scout",

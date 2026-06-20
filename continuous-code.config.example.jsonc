@@ -1,0 +1,153 @@
+// continuous-code.config.jsonc — pre-install configuration for continuous-code.
+// ----------------------------------------------------------------------------
+// COPY this file to `continuous-code.config.jsonc` (same dir) and edit before
+// running ./install.sh (or the curl bootstrap). It is OPTIONAL: if the file is
+// absent or empty, every value below applies as the default and you get a
+// working minimal install (sqlite memory, no extras, all components enabled,
+// install-time model autoconfig). JSONC: // and /* */ comments + trailing
+// commas are allowed. install.sh parses it with node (no jq required).
+//
+// This file is PRE-INSTALL config only. install.sh translates it at install
+// time into the runtime files the plugin actually reads: `memory.json` (project
+// dir) and `.env`. The plugin never reads this file.
+{
+  // === Where the project clone lives (bootstrap only; install.sh ignores it,
+  // it always uses its own script dir). Default below mirrors bootstrap.sh. ===
+  "home": "~/.local/share/continuous-code",
+
+  // ========================================================================
+  // (a) COMPONENT TOGGLES — exclude/include whole subsystems.
+  // Anything true is installed; false is skipped. Defaults = full minimal set.
+  // ========================================================================
+  "components": {
+    "agents":        true,  // copy agents/*.md into the opencode config dir
+    "commands":      true,  // copy commands/*.md (slash commands)
+    "plugin":        true,  // build + install the opencode-continuous plugin
+    "opencodeJson":  true,  // deploy/merge opencode.json into the project
+    "thoughts":      true,  // create thoughts/ skeleton (handoffs, ledgers)
+    "shellAlias":    true,  // add the `opencode` background-subagents alias
+    "consensus":     true   // deploy consensus.json (multi-model deliberation)
+  },
+
+  // ========================================================================
+  // (b) MEMORY — long-term learning store.
+  //   mode: "sqlite" (default, zero-infra) | "postgres" | "none"
+  // install.sh writes the resolved backend into memory.json + .env using the
+  // runtime env vars MEMORY_BACKEND / MEMORY_DB_PATH / CONTINUOUS_CODE_DB_URL.
+  //
+  // !! CC-v3 REUSE POLICY (important) !!
+  // By default (reuseExistingCcV3:true, forceStandalone:false) the installer
+  // OPPORTUNISTICALLY REUSES a detected Continuous-Claude-v3 postgres
+  // (container `continuous-claude-postgres`, db `continuous_claude` on :5432)
+  // for memory — this OVERRIDES the sqlite default below even when "mode" is
+  // left at "sqlite". That is the intended "utilize it when present" behavior.
+  // For a GUARANTEED pure-sqlite install, set ONE of:
+  //   - "reuseExistingCcV3": false   (see bottom of this file), OR
+  //   - "forceStandalone": true      (see bottom of this file), OR
+  //   - an explicit "memory.postgres.url" (a url always wins over detection).
+  // ========================================================================
+  "memory": {
+    "mode": "sqlite",            // sqlite | postgres | none
+
+    // sqlite settings (mode=sqlite). Path is created if missing.
+    // Written to .env as MEMORY_DB_PATH and to memory.json as "sqlitePath".
+    "sqlite": {
+      "path": "~/.config/opencode/continuous/memory.db"
+    },
+
+    // postgres settings (mode=postgres).
+    "postgres": {
+      // provision: how install.sh obtains a postgres:
+      //   "docker" — bring up db/docker-compose.yml (pgvector) locally
+      //   "native" — use a postgres already installed on the host (psql on PATH)
+      //   "skip"   — do not provision; just point at "url" below
+      "provision": "docker",
+
+      // When provision=docker, these seed db/docker-compose.yml via env.
+      "dbName":   "continuous_code",   // standalone db name (NOT continuous_claude)
+      "user":     "continuous",
+      "password": "continuous_dev",
+      "port":     5433,                // 5433 avoids clashing with a CC-v3 :5432
+
+      // Explicit connection string. When set, overrides the docker/native
+      // derived URL and is used verbatim (provision can be "skip"). It also
+      // wins over CC-v3 detection. Written to .env as CONTINUOUS_CODE_DB_URL.
+      "url": ""                        // e.g. postgresql://user:pw@host:5432/db
+    },
+
+    // ----------------------------------------------------------------------
+    // EMBEDDINGS — semantic recall. Default "none" = fast text-only recall,
+    // always safe (no API keys, no dimension constraints). install.sh writes
+    // this into memory.json "embeddings".
+    //   provider: "none" | "voyage" | "openai" | "ollama" | "local"
+    // 1024-dim constraint: against a shared vector(1024) postgres (including a
+    // reused CC-v3 db) ONLY "voyage" (1024-dim) may be enabled. "openai"
+    // (1536-dim) is sqlite-only. install.sh warns/refuses on a mismatch.
+    // ----------------------------------------------------------------------
+    "embeddings": {
+      "provider": "none",            // none | voyage | openai | ollama | local
+      "model":    "",                // optional model override (per-provider default)
+      "apiKeyEnv": "VOYAGE_API_KEY"  // env var holding the API key (provider-specific)
+    }
+  },
+
+  // ========================================================================
+  // (c) EXTRAS — opt-in, all default OFF/auto (keeps the minimal install lean).
+  // ========================================================================
+  "extras": {
+    // tldr (llm-tldr): token-efficient code analysis CLI on PATH.
+    // "auto" = enable only if `tldr` is already detected on PATH (opportunistic,
+    //          also satisfied by a CC-v3 install that already ships tldr);
+    // true   = attempt to install it; false = never use it.
+    "tldr": "auto",                    // auto | true | false
+
+    // Local embedding/math stack (BGE embeddings + math CLIs). Needed only for
+    // local (offline) semantic memory + the math cognitive stack.
+    "localEmbeddings": false,          // bool — pip/uv install the embedding stack
+
+    // Extra MCP servers to register into opencode.json `mcp`. Each entry is
+    // merged verbatim; empty by default.
+    "mcpServers": {
+      // "firecrawl": { "type": "local", "command": ["npx","-y","firecrawl-mcp"] }
+    }
+  },
+
+  // ========================================================================
+  // INSTALL-TIME AUTOCONFIG — auto-assign per-agent models + reasoning effort.
+  // ========================================================================
+  "autoconfig": {
+    "enabled":  true,     // run the headless autoconfig at install time
+    "prefer":   "",       // provider hint, e.g. "anthropic" (must be authed)
+    "dryRun":   false,    // true => print the plan, do not write opencode.json
+    "fallbackModel": "ollama-cloud/deepseek-v4-pro" // kept if NO provider authed
+  },
+
+  // ========================================================================
+  // SUBAGENT WATCHDOG — auto-wake the orchestrator while background subagents
+  // run, so stuck/finished children always get noticed. ON BY DEFAULT (the
+  // default lives in the plugin code; this block only overrides it).
+  // When the orchestrator spawns background subagent(s), a recurring timer is
+  // ARMED. If it fires while subagents are still running, the (idle)
+  // orchestrator is NUDGED to check whether they are stuck / finished and
+  // decide (abort/respawn/continue) — the watchdog never aborts on its own.
+  // When all subagents finish, the timer DISARMS. Disable with enabled:false
+  // here, or the env var OPENCODE_CONTINUOUS_WATCHDOG=0.
+  // ========================================================================
+  "watchdog": {
+    "enabled":         true,  // master on/off (env OPENCODE_CONTINUOUS_WATCHDOG wins)
+    "intervalMinutes": 20,    // fixed wake interval in minutes (not escalating)
+    "maxWakes":        6      // hard cap on consecutive wake nudges (loop guard)
+  },
+
+  // ========================================================================
+  // CC-v3 OPPORTUNISTIC REUSE — detect & reuse an existing Continuous-Claude-v3.
+  // See the MEMORY block above for the full reuse policy. Set this to false for
+  // a guaranteed pure-sqlite/standalone memory install.
+  // ========================================================================
+  "reuseExistingCcV3": true, // false => force standalone, ignore any CC-v3 db/tldr
+
+  // Force everything standalone (overrides reuseExistingCcV3 + provision):
+  // true => never reuse a CC-v3 db; provision a standalone db (postgres) or use
+  // sqlite. Guarantees no dependency on any Continuous-Claude-v3 install.
+  "forceStandalone": false
+}

@@ -1,0 +1,56 @@
+<svg width="680" height="200" viewBox="0 0 680 200" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="continuous-code">
+  <title>continuous-code</title>
+  <defs>
+    <!-- Continuity gradient: reads on light and dark backgrounds -->
+    <linearGradient id="cc-grad" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#7C5CFF"/>
+      <stop offset="0.5" stop-color="#4F8CFF"/>
+      <stop offset="1" stop-color="#22D3A6"/>
+    </linearGradient>
+    <linearGradient id="cc-grad-soft" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#7C5CFF"/>
+      <stop offset="1" stop-color="#22D3A6"/>
+    </linearGradient>
+    <style>
+      .cc-word  { fill: #0B1020; }
+      .cc-sub   { fill: #5B6478; }
+      @media (prefers-color-scheme: dark) {
+        .cc-word { fill: #F2F4FA; }
+        .cc-sub  { fill: #9AA3B8; }
+      }
+    </style>
+  </defs>
+
+  <!-- Mark: an infinity loop (continuity) drawn as two code-bracket strokes -->
+  <g transform="translate(28 44)" fill="none" stroke="url(#cc-grad)" stroke-width="13"
+     stroke-linecap="round" stroke-linejoin="round">
+    <!-- continuous loop -->
+    <path d="M58 56
+             C58 28 36 18 22 32
+             C8 46 8 66 22 80
+             C36 94 58 84 58 56
+             C58 28 80 18 94 32
+             C108 46 108 66 94 80
+             C80 94 58 84 58 56 Z"/>
+  </g>
+
+  <!-- Code carets sitting inside the loop centre -->
+  <g transform="translate(28 44)" fill="none" stroke="#FFFFFF" stroke-width="5.5"
+     stroke-linecap="round" stroke-linejoin="round" opacity="0.95">
+    <path d="M46 44 L37 56 L46 68"/>
+    <path d="M70 44 L79 56 L70 68"/>
+  </g>
+
+  <!-- Wordmark -->
+  <g transform="translate(170 0)">
+    <text x="0" y="92" class="cc-word"
+          font-family="'Segoe UI', 'Helvetica Neue', Arial, sans-serif"
+          font-size="58" font-weight="700" letter-spacing="-1.5">continuous</text>
+    <text x="0" y="152" fill="url(#cc-grad-soft)"
+          font-family="'JetBrains Mono','SFMono-Regular',Consolas,'Liberation Mono',monospace"
+          font-size="56" font-weight="700" letter-spacing="-1">-code</text>
+    <text x="335" y="152" class="cc-sub"
+          font-family="'JetBrains Mono','SFMono-Regular',Consolas,monospace"
+          font-size="20" font-weight="500" letter-spacing="0">{ }</text>
+  </g>
+</svg>

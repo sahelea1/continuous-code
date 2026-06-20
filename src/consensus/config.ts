@@ -277,3 +277,100 @@ export function setMainMember(
   next.panel = next.panel.map((m) => ({ ...m, main: m.id === id }))
   return next
 }
+
+/**
+ * Set the global temperature (0–2). Returns a new config.
+ * Throws if the value is out of range.
+ */
+export function setTemperature(
+  config: ConsensusConfig,
+  temperature: number,
+): ConsensusConfig {
+  if (typeof temperature !== "number" || temperature < 0 || temperature > 2) {
+    throw new Error(`Temperature must be a number in [0, 2]; got ${temperature}.`)
+  }
+  return { ...cloneConfig(config), temperature }
+}
+
+/**
+ * Set the global maxTokens (positive integer). Returns a new config.
+ * Throws if the value is not a positive integer.
+ */
+export function setMaxTokens(
+  config: ConsensusConfig,
+  maxTokens: number,
+): ConsensusConfig {
+  if (!Number.isInteger(maxTokens) || maxTokens < 1) {
+    throw new Error(`maxTokens must be a positive integer; got ${maxTokens}.`)
+  }
+  return { ...cloneConfig(config), maxTokens }
+}
+
+/**
+ * Set the agreement threshold (0–1). Returns a new config.
+ * Throws if the value is out of range.
+ */
+export function setAgreementThreshold(
+  config: ConsensusConfig,
+  agreementThreshold: number,
+): ConsensusConfig {
+  if (
+    typeof agreementThreshold !== "number" ||
+    agreementThreshold < 0 ||
+    agreementThreshold > 1
+  ) {
+    throw new Error(
+      `agreementThreshold must be a number in [0, 1]; got ${agreementThreshold}.`,
+    )
+  }
+  return { ...cloneConfig(config), agreementThreshold }
+}
+
+/**
+ * Set the timeout in milliseconds (positive integer). Returns a new config.
+ * Throws if the value is not a positive integer.
+ */
+export function setTimeoutMs(
+  config: ConsensusConfig,
+  timeoutMs: number,
+): ConsensusConfig {
+  if (!Number.isInteger(timeoutMs) || timeoutMs < 1) {
+    throw new Error(`timeoutMs must be a positive integer; got ${timeoutMs}.`)
+  }
+  return { ...cloneConfig(config), timeoutMs }
+}
+
+/**
+ * Set the requireParameters flag. Returns a new config.
+ */
+export function setRequireParameters(
+  config: ConsensusConfig,
+  requireParameters: boolean,
+): ConsensusConfig {
+  return { ...cloneConfig(config), requireParameters }
+}
+
+/**
+ * Add or update a custom provider entry (matched by `key`). Returns a new config.
+ * Both `baseURL` and `apiKeyEnv` are optional on update (existing values kept if omitted).
+ * `baseURL` is required when adding a new provider.
+ */
+export function upsertProvider(
+  config: ConsensusConfig,
+  key: string,
+  update: { baseURL?: string; apiKeyEnv?: string },
+): ConsensusConfig {
+  if (!key || key.trim().length === 0) {
+    throw new Error("Provider key must be a non-empty string.")
+  }
+  const next = cloneConfig(config)
+  const existing = next.providers[key]
+  if (!existing && !update.baseURL) {
+    throw new Error(`Provider '${key}' is new — a baseURL is required.`)
+  }
+  next.providers[key] = {
+    baseURL: update.baseURL ?? existing.baseURL,
+    apiKeyEnv: update.apiKeyEnv ?? existing?.apiKeyEnv,
+  }
+  return next
+}

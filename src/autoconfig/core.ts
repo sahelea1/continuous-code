@@ -618,6 +618,160 @@ export function inspect(opts: InspectOptions = {}): InspectResult {
 }
 
 // ---------------------------------------------------------------------------
+// Deterministic agent-fleet selection (LLM-free)
+// ---------------------------------------------------------------------------
+
+/**
+ * Agent fleet tiers used by {@link planAssignments} to map the host's
+ * available models onto a reasoning-effort taxonomy. This mirrors the
+ * `/autoconfagent` Step-2 taxonomy headlessly.
+ *
+ * NOTE: the native OpenCode `build` and `plan` primary modes are intentionally
+ * NOT listed here — they are left 100% native and must never be written by the
+ * autoconfig CLI. The project's only orchestration primary is `orchestrator`.
+ */
+export const AGENT_TIERS = {
+  orchestrator: ["orchestrator"],
+  heavy: [
+    "oracle",
+    "sleuth",
+    "kraken",
+    "judge",
+    "plan-agent",
+    "phoenix",
+    "architect",
+    "general",
+  ],
+  light: [
+    "scout",
+    "spark",
+    "arbiter",
+    "scribe",
+    "memory-extractor",
+    "explore",
+  ],
+} as const
+
+export interface PlanOptions {
+  /** Provider hint; if authenticated, biased to the front of the selection. */
+  prefer?: string
+  /** Model slug kept for every agent when NO provider is authenticated. */
+  fallbackModel: string
+}
+
+export interface PlanResult {
+  assignments: Record<string, Assignment>
+  /** True when no provider was authenticated and the fallback was applied. */
+  usedFallback: boolean
+  /** Human-readable, one-line summary of the selection (for the CLI/install). */
+  note: string
+}
+
+/**
+ * Rank a provider's models from strongest to weakest for selection purposes.
+ * Reasoning-capable models with the richest variant set sort first; ties broken
+ * by variant count then alphabetical id for determinism.
+ */
+function rankModels(models: InspectedModel[]): InspectedModel[] {
+  return [...models].sort((a, b) => {
+    if (a.reasoning !== b.reasoning) return a.reasoning ? -1 : 1
+    if (a.variants.length !== b.variants.length) {
+      return b.variants.length - a.variants.length
+    }
+    return a.id.localeCompare(b.id)
+  })
+}
+
+/**
+ * Deterministic, LLM-free fleet selection. Plugs between {@link inspect} and
+ * {@link applyAssignments}.
+ *
+ * 1. Take authenticated providers (inspect already sorts authed-first). If
+ *    `opts.prefer` is authenticated, move it to the front.
+ * 2. If NO provider is authenticated, assign every fleet agent the
+ *    `opts.fallbackModel` and return `usedFallback:true`.
+ * 3. Otherwise, within the chosen provider's models pick strong/mid/fast and
+ *    assign: orchestrator tier -> strong @ xhigh, heavy tier -> mid @ high,
+ *    light tier -> fast @ low. Effort on non-reasoning models is dropped by
+ *    {@link applyAssignments}, so no special-casing is needed here.
+ *
+ * Only the 15 keys in {@link AGENT_TIERS} are assigned — never `build`/`plan`.
+ */
+export function planAssignments(
+  result: InspectResult,
+  opts: PlanOptions,
+): PlanResult {
+  const fleet: Array<{ agents: readonly string[]; effort: Effort }> = [
+    { agents: AGENT_TIERS.orchestrator, effort: "xhigh" },
+    { agents: AGENT_TIERS.heavy, effort: "high" },
+    { agents: AGENT_TIERS.light, effort: "low" },
+  ]
+
+  const authed = result.providers.filter((p) => p.authenticated)
+
+  // No authenticated provider: keep the committed fallback everywhere.
+  if (authed.length === 0) {
+    const assignments: Record<string, Assignment> = {}
+    for (const tier of fleet) {
+      for (const agent of tier.agents) {
+        assignments[agent] = { model: opts.fallbackModel, effort: tier.effort }
+      }
+    }
+    return {
+      assignments,
+      usedFallback: true,
+      note:
+        "No authenticated provider detected — keeping fallback model " +
+        `'${opts.fallbackModel}'. Authenticate a provider (e.g. ollama-cloud, ` +
+        "anthropic) and run /autoconfagent to assign per-agent models.",
+    }
+  }
+
+  // Pick a provider: prefer the requested one when it is authenticated.
+  let chosen = authed[0]
+  if (opts.prefer) {
+    const preferred = authed.find((p) => p.id === opts.prefer)
+    if (preferred) chosen = preferred
+  }
+
+  const ranked = rankModels(chosen.models)
+
+  // Derive strong/mid/fast slugs. Fall back to fallbackModel when the chosen
+  // provider enumerated no models (capability unknown but provider authed).
+  const slug = (m: InspectedModel | undefined): string =>
+    m ? `${chosen.id}/${m.id}` : opts.fallbackModel
+
+  const strong = slug(ranked[0])
+  const mid = slug(ranked[1] ?? ranked[0])
+  // Fast = cheapest / first non-reasoning, else the weakest ranked model.
+  const fastModel =
+    [...ranked].reverse().find((m) => !m.reasoning) ?? ranked[ranked.length - 1]
+  const fast = slug(fastModel)
+
+  const tierModel: Record<string, string> = {
+    xhigh: strong,
+    high: mid,
+    low: fast,
+  }
+
+  const assignments: Record<string, Assignment> = {}
+  for (const tier of fleet) {
+    const model = tierModel[tier.effort]
+    for (const agent of tier.agents) {
+      assignments[agent] = { model, effort: tier.effort }
+    }
+  }
+
+  return {
+    assignments,
+    usedFallback: false,
+    note:
+      `Selected provider '${chosen.id}': orchestrator=${strong} (xhigh), ` +
+      `heavy=${mid} (high), light=${fast} (low).`,
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Apply
 // ---------------------------------------------------------------------------
 

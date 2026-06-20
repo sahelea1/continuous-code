@@ -30,8 +30,9 @@ Your plan must include:
 5. Test strategy — how to verify behavior is preserved at each step
 6. Rollback plan — how to revert if something goes wrong
 
-Run: tldr impact <target> . --depth 3
-to identify all callers before proposing changes.
+Impact analysis (use what is available):
+- If `tldr` is on PATH (extras.tldr): run `tldr impact <target> . --depth 3` to identify all callers.
+- Otherwise fall back to native tools: Grep for call-site search, Read for file-by-file tracing.
 
 Output a numbered step list where each step is independently committable.
 ```

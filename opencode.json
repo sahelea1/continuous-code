@@ -1,6 +1,6 @@
 {
   "$schema": "https://opencode.ai/config.json",
-  "default_agent": "build",
+  "default_agent": "orchestrator",
   "model": "ollama-cloud/deepseek-v4-pro",
   "small_model": "ollama-cloud/deepseek-v4-flash",
   "provider": {
@@ -25,48 +25,6 @@
     }
   },
   "agent": {
-    "build": {
-      "model": "zai-coding-plan/glm-5.2",
-      "description": "Primary orchestrator — thinks and delegates only; never directly reads, searches, lists, edits, or executes",
-      "prompt": "You are the primary build orchestrator. You must never directly inspect, read, search, list, edit, or execute anything in the codebase. You may only think and delegate all work to subagents. For all inspection, implementation, testing, and research tasks, spawn subagents. Parallelize independent subagent work. Default routine tasks to flash workers (deepseek-v4-flash). Use deepseek-v4-pro workers for heavy reasoning. Use *-openai alternatives (gpt-5.4 xhigh) only for the hardest logic or when a second opinion is needed.",
-      "permission": {
-        "task": "allow",
-        "todowrite": "allow",
-        "skill": "allow",
-        "question": "allow",
-        "read": "deny",
-        "grep": "deny",
-        "glob": "deny",
-        "list": "deny",
-        "bash": "deny",
-        "edit": "deny",
-        "webfetch": "deny",
-        "websearch": "deny",
-        "lsp": "deny",
-        "external_directory": "deny"
-      }
-    },
-    "plan": {
-      "model": "zai-coding-plan/glm-5.2",
-      "description": "Plan orchestrator — thinks and delegates only; never directly reads, searches, lists, edits, or executes",
-      "prompt": "You are the plan orchestrator. You must never directly inspect, read, search, list, edit, or execute anything in the codebase. Delegate all codebase inspection, research, and analysis to subagents. You may only think and coordinate subagent work. For exploration, delegate to scout/explore (flash). For deep analysis, delegate to architect/sleuth/oracle (deepseek-v4-pro). Use *-openai alternatives (gpt-5.4 xhigh) only for high-stakes planning or second opinions.",
-      "permission": {
-        "task": "allow",
-        "todowrite": "allow",
-        "skill": "allow",
-        "question": "allow",
-        "read": "deny",
-        "grep": "deny",
-        "glob": "deny",
-        "list": "deny",
-        "bash": "deny",
-        "edit": "deny",
-        "webfetch": "deny",
-        "websearch": "deny",
-        "lsp": "deny",
-        "external_directory": "deny"
-      }
-    },
     "orchestrator": {
       "model": "zai-coding-plan/glm-5.2",
       "variant": "max",

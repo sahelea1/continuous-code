@@ -14,14 +14,23 @@
     "test": "bash tests/docker/run.sh",
     "test:consensus": "node --test tests/consensus/"
   },
+  "bin": {
+    "continuous-code-autoconfig": "./dist/autoconfig/cli.js"
+  },
   "dependencies": {
     "@opencode-ai/plugin": "^1.14.33",
     "yaml": "^2.4.0"
   },
+  "optionalDependencies": {
+    "better-sqlite3": "^11.0.0",
+    "pg": "^8.12.0"
+  },
   "devDependencies": {
     "typescript": "^5.5.0",
-    "@types/node": "^20.14.0"
+    "@types/node": "^20.14.0",
+    "@types/better-sqlite3": "^7.6.0",
+    "@types/pg": "^8.11.0"
   },
-  "files": ["dist/", "agents/", "commands/", "opencode.json", "skill-rules.json", "consensus.json", "install.sh", "uninstall.sh"],
+  "files": ["dist/", "agents/", "commands/", "db/", "scripts/", "bootstrap.sh", "install.sh", "uninstall.sh", "continuous-code.config.example.jsonc", "opencode.json", "skill-rules.json", "consensus.json"],
   "license": "MIT"
 }

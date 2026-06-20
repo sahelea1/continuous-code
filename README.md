@@ -1,589 +1,286 @@
-# opencode-continuous
+<div align="center">
 
+<img src="assets/logo.svg" alt="continuous-code" width="520">
 
-```
- +--------------------------------------------------+
- |   ___  _ __   ___ _ __   ___ ___   __| | ___     |
- |  / _ \| '_ \ / _ \ '_ \ / __/ _ \ / _` |/ _ \   |
- | | (_) | |_) |  __/ | | | (_| (_) | (_| |  __/   |
- |  \___/| .__/ \___|_| |_|\___\___/ \__,_|\___|   |
- |  ___ _|_|  _ __ | |_(_)_ __  _   _  ___  _   _ ___|
- | / __|/ _ \| '_ \| __| | '_ \| | | |/ _ \| | | / __|
- | | (_| (_) | | | | |_| | | | | |_| | (_) | |_| \__ \
- |  \___\___/|_| |_|\__|_|_| |_|\__,_|\___/ \__,_|___/
- +--------------------------------------------------+
-```
+### Agent-orchestrated, continuity-first development for OpenCode.
 
-**Agent-only orchestration for OpenCode -- 14 specialist subagents (plus 3 delegate-only orchestrators), zero direct execution.**
+A self-contained OpenCode plugin: one delegating **orchestrator**, a fleet of specialist subagents, persistent **memory & recall**, multi-model **consensus**, and a one-command installer that auto-tunes every agent to the providers you actually have.
 
----
+[![License: MIT](https://img.shields.io/badge/license-MIT-22D3A6.svg)](#license)
+[![OpenCode](https://img.shields.io/badge/OpenCode-%E2%89%A5%201.14.0-4F8CFF.svg)](https://opencode.ai)
+[![Standalone](https://img.shields.io/badge/install-standalone-7C5CFF.svg)](#quick-start)
+[![Memory](https://img.shields.io/badge/memory-sqlite%20%7C%20postgres%20%7C%20none-5B6478.svg)](#memory--recall)
 
-## Feature Highlights
-
-- **Agent-only execution** -- orchestrators never read, grep, or run commands; everything goes through the `task` tool to specialized subagents
-- **Three orchestrator tiers** -- `build`, `plan`, and the general-purpose `orchestrator` agent; each delegates only and has all direct-tool permissions denied
-- **High-effort variants** -- optional `*-openai` subagents (GPT-5.4 at `xhigh` reasoning) for the hardest logic or second opinions
-- **Parallel delegation** -- spawn multiple subagents concurrently via the `parallel_delegate` custom tool
-- **Session continuity** -- YAML handoffs and markdown ledgers persist state across sessions, compatible with Continuous Claude v3 format
-- **Skill activation** -- intent keywords in your prompt are detected and routed to the right agent pipeline automatically
-- **10 slash commands** -- `/fix`, `/build`, `/tdd`, `/explore`, `/review`, `/refactor`, `/handoff`, `/resume`, `/consensus`, `/autoconfagent`
-- **Per-agent model config** -- every agent can use a different model and provider; defaults to free Ollama Cloud (DeepSeek V4) for workers and Z.AI GLM-5.2 for orchestrators
-- **Auto-configuration** -- `/autoconfagent` detects the providers on your host and writes the optimal model + reasoning effort for every agent into `opencode.json`
-- **Two-layer enforcement** -- frontmatter permissions + plugin hook ensure orchestrators delegate, never execute
-- **Docker support** -- isolated container execution for testing and CI
+</div>
 
 ---
 
 ## Quick Start
 
-### Script Install (3 steps)
+One command. No prerequisites beyond `git`, `node`, `bash`, and one of `bun` or `npm` — it clones, builds, configures, and auto-tunes models to your host:
 
 ```bash
-git clone https://github.com/your-org/opencode-continuous.git
-cd opencode-continuous && ./install.sh
-source ~/.bashrc   # or ~/.zshrc — activates the opencode alias
-opencode
+curl -fsSL https://raw.githubusercontent.com/sahelea1/continuous-code/prod/bootstrap.sh | bash
 ```
 
-### Docker (2 steps)
+That bootstrap clones the repo into `~/.local/share/continuous-code`, seeds an editable
+`continuous-code.config.jsonc`, then runs `install.sh` which builds the plugin, deploys the agents
+and slash commands, provisions memory, and runs install-time autoconfig.
+
+Prefer to drive it yourself:
 
 ```bash
-git clone https://github.com/your-org/opencode-continuous.git
-cd opencode-continuous && ./launch.sh /path/to/your/project
+git clone -b prod https://github.com/sahelea1/continuous-code.git
+cd continuous-code
+cp continuous-code.config.example.jsonc continuous-code.config.jsonc   # optional: edit toggles
+./install.sh
+opencode                                                              # in any project dir
 ```
+
+> **Defaults are safe and infra-free.** With no config edits you get: all components on, SQLite
+> memory (no database server), no extra services, and install-time model autoconfig. Everything
+> heavier is strictly opt-in.
 
 ---
 
-## Installation
+## Features
 
-### Script Install
+continuous-code adds a complete continuity-and-orchestration layer to OpenCode while leaving the
+editor's own modes untouched.
 
-```bash
-./install.sh
-```
-
-This will:
-
-1. Install npm dependencies and build the TypeScript plugin
-2. Copy agent `.md` files to `~/.config/opencode/agents/`
-3. Copy command `.md` files to `~/.config/opencode/commands/`
-4. Install the plugin into OpenCode's config-level `node_modules`
-5. Create `opencode.json` in the current directory (existing file backed up to `.bak`)
-6. Create the `thoughts/shared/handoffs/` and `thoughts/ledgers/` directory skeleton
-7. Add an `opencode` shell alias to your rc file (`.bashrc` or `.zshrc`) that enables OpenCode's **experimental background subagents**
-
-After install, activate the alias without opening a new shell:
-
-```bash
-source ~/.bashrc   # or source ~/.zshrc
-```
-
-#### Background subagents alias
-
-The installer writes this alias to your shell rc file:
-
-```bash
-alias opencode='OPENCODE_EXPERIMENTAL_BACKGROUND_SUBAGENTS=true opencode'
-```
-
-This enables OpenCode's experimental parallel background subagent feature, which the orchestrators rely on for concurrent delegation. If you prefer to manage this yourself or are using a wrapper script, pass `--no-alias` to skip this step:
-
-```bash
-./install.sh --no-alias
-```
-
-Requires [OpenCode](https://opencode.ai) v1.14.0+ and either `npm` or `bun`.
-
-### Docker Install
-
-```bash
-./launch.sh /path/to/your/project
-```
-
-| Flag | Description |
-|------|-------------|
-| (no flags) | Launches interactive opencode session inside the container |
-| `/path/to/project` | Mount your project directory as the working directory |
-
-The container bundles OpenCode, the plugin, and all agents. Your project is mounted read-write at `/workspace`.
-
-### Manual Install
-
-If you prefer not to run `install.sh`, do the steps yourself:
-
-```bash
-# 1. Build the plugin
-npm install && npx tsc
-
-# 2. Copy agents and commands into OpenCode's config directory
-cp agents/*.md ~/.config/opencode/agents/
-cp commands/*.md ~/.config/opencode/commands/
-
-# 3. Register the plugin in OpenCode's config-level node_modules
-cd ~/.config/opencode && npm install file:///absolute/path/to/opencode-continuous
-
-# 4. Copy opencode.json into your project root
-cp opencode.json /path/to/your/project/opencode.json
-
-# 5. Create the continuity directory skeleton
-mkdir -p /path/to/your/project/thoughts/shared/handoffs
-mkdir -p /path/to/your/project/thoughts/ledgers
-
-# 6. Enable background subagents (add to your shell rc manually)
-echo "alias opencode='OPENCODE_EXPERIMENTAL_BACKGROUND_SUBAGENTS=true opencode'" >> ~/.bashrc
-```
-
-### Contributor Setup
-
-Use `--symlink` so edits to agent/command files take effect immediately without reinstalling:
-
-```bash
-./install.sh --symlink
-```
-
-This creates symlinks instead of copies. Changes to `agents/*.md` or `commands/*.md` in your clone are reflected instantly in `~/.config/opencode/`.
+- **Orchestrator-led delegation.** A single project agent, **`orchestrator`** (the default agent),
+  decomposes your request and dispatches everything to specialist subagents via the `task` tool. It
+  never reads, greps, or edits directly — every action flows through a worker.
+- **Native `build` / `plan` stay 100% native.** continuous-code *adds* its own agents and never
+  redefines OpenCode's built-in `build` and `plan` modes. Switch to them any time; they behave
+  exactly as stock OpenCode.
+- **12 specialist subagents** — `arbiter`, `architect`, `judge`, `kraken`, `memory-extractor`,
+  `oracle`, `phoenix`, `plan-agent`, `scout`, `scribe`, `sleuth`, `spark` — each scoped to one job
+  with least-privilege permissions.
+- **7 high-effort `*-openai` variants** — `architect-openai`, `judge-openai`, `kraken-openai`,
+  `oracle-openai`, `phoenix-openai`, `plan-agent-openai`, `sleuth-openai` — opt-in escalation for
+  the hardest reasoning or a second opinion.
+- **Persistent memory & recall.** A real TypeScript-native memory backend (SQLite by default,
+  optional Postgres/pgvector, or `none`) stores session learnings and surfaces relevant ones into
+  new sessions automatically. Embeddings are opt-in. See [Memory & Recall](#memory--recall).
+- **Multi-model consensus.** The orchestrator can form answers by polling a panel of models across
+  providers in parallel and synthesizing one consensus result, fully configured through an
+  interactive `/consensus` wizard. See [Consensus](#consensus).
+- **Session continuity.** YAML handoffs + markdown continuity ledgers persist state across sessions;
+  the format is compatible with Continuous-Claude-v3.
+- **Install-time autoconfig.** The installer detects which providers are actually authenticated on
+  your host and writes the optimal model + reasoning effort for the orchestrator and every worker
+  into `opencode.json` — deterministically, no LLM round-trip.
+- **Two-layer enforcement.** Frontmatter permissions block direct tool use; a plugin hook rewrites
+  the resulting error so the model learns to delegate, scoped to the `orchestrator` only.
+- **Opportunistic CC-v3 reuse.** If a Continuous-Claude-v3 Postgres is already running, the
+  installer will reuse it for memory (idempotent schema re-apply) — or you can force pure standalone.
+- **Editable pre-install config.** A single commented `continuous-code.config.jsonc` controls
+  component toggles, memory backend (incl. docker-vs-native Postgres), opt-in extras
+  (`tldr`, local embeddings, extra MCP servers), autoconfig, and CC-v3 reuse.
+- **10 slash commands** for the common pipelines — fix, build, TDD, explore, review, refactor,
+  handoff, resume, consensus, autoconfig.
+- **`tsc`-only build, lazy native deps.** No bundler; `better-sqlite3`/`pg` are optional and
+  lazy-loaded — if they can't load, memory degrades gracefully to `none` instead of crashing.
 
 ---
 
 ## Configuration
 
-### Providers and Default Models
+Everything pre-install is driven by one file at the repo root:
 
-The default configuration uses two providers:
-
-| Provider | Purpose | Auth |
-|----------|---------|------|
-| `zai-coding-plan` (Z.AI GLM-5.2) | Orchestrators (`build`, `plan`, `orchestrator`) | `opencode auth login` |
-| `ollama-cloud` (DeepSeek V4) | All worker subagents | `opencode auth login` |
-
-Both are free tiers that authenticate through OpenCode's standard login. No separate API keys are required beyond `opencode auth login`.
-
-The default tier split is intentional: orchestrators get a stronger reasoning model (GLM-5.2) while light workers use the faster flash variant of DeepSeek V4, keeping cost low for high-volume delegation.
-
-### Agent Table
-
-| Agent | Role | Tier | Default Model |
-|-------|------|------|---------------|
-| **build** | Primary orchestrator -- delegates all work | Orchestrator | `zai-coding-plan/glm-5.2` |
-| **plan** | Plan orchestrator -- delegates all work | Orchestrator | `zai-coding-plan/glm-5.2` |
-| **orchestrator** | General orchestrator -- delegates all work | Orchestrator | `zai-coding-plan/glm-5.2` (`max` variant) |
-| scout | Codebase exploration | Light | `ollama-cloud/deepseek-v4-flash` |
-| explore | Quick codebase browsing | Light | `ollama-cloud/deepseek-v4-flash` |
-| spark | Small one-file fixes | Light | `ollama-cloud/deepseek-v4-flash` |
-| arbiter | Test execution and verification | Light | `ollama-cloud/deepseek-v4-flash` |
-| scribe | Docs, handoffs, ledgers | Light | `ollama-cloud/deepseek-v4-flash` |
-| memory-extractor | Extract session learnings | Light | `ollama-cloud/deepseek-v4-flash` |
-| oracle | External research | Heavy | `ollama-cloud/deepseek-v4-pro` |
-| sleuth | Bug investigation | Heavy | `ollama-cloud/deepseek-v4-pro` |
-| kraken | Implementation (TDD) | Heavy | `ollama-cloud/deepseek-v4-pro` |
-| judge | Code review | Heavy | `ollama-cloud/deepseek-v4-pro` |
-| plan-agent | Implementation planning | Heavy | `ollama-cloud/deepseek-v4-pro` |
-| phoenix | Refactoring planning | Heavy | `ollama-cloud/deepseek-v4-pro` |
-| architect | Feature/integration design | Heavy | `ollama-cloud/deepseek-v4-pro` |
-| general | General-purpose heavy worker | Heavy | `ollama-cloud/deepseek-v4-pro` |
-
-### High-Effort OpenAI Variants
-
-For the hardest reasoning tasks or when a second opinion is useful, optional `*-openai` agent files are provided. These run on `openai/gpt-5.4` at `xhigh` reasoning effort. The orchestrator's system prompt instructs it to route to these only when the standard worker is insufficient:
-
-| Agent | OpenAI variant |
-|-------|---------------|
-| kraken | kraken-openai |
-| sleuth | sleuth-openai |
-| oracle | oracle-openai |
-| judge | judge-openai |
-| plan-agent | plan-agent-openai |
-| phoenix | phoenix-openai |
-| architect | architect-openai |
-
-These are available as subagents but are not used by default. The orchestrator's instructions say: "Use `*-openai` alternatives (GPT-5.4 xhigh) only for the hardest logic or when a second opinion is needed."
-
-### Swapping Models
-
-Override any agent in your project's `opencode.json`. Only specify the agents you want to change; the rest keep their defaults.
-
-```json
-{
-  "agent": {
-    "kraken": { "model": "openai/gpt-5.4" }
-  }
-}
+```bash
+cp continuous-code.config.example.jsonc continuous-code.config.jsonc
 ```
 
-### Multiple Providers
+It is **optional** — absent or empty, every value falls to its default and you get a working
+minimal install. It is JSONC (`//` and `/* */` comments + trailing commas allowed) and is parsed by
+`install.sh` with node (no `jq` needed). The live file is gitignored; the example stays tracked.
 
-You can mix providers freely. Each agent resolves its model independently.
+| Section | Key highlights | Default |
+|---|---|---|
+| `components` | Toggle whole subsystems: `agents`, `commands`, `plugin`, `opencodeJson`, `thoughts`, `shellAlias`, `consensus` | all `true` |
+| `memory` | `mode: sqlite \| postgres \| none`; for Postgres: `provision: docker \| native \| skip`, db name/user/port, or an explicit `url` | `sqlite` |
+| `extras.tldr` | `auto` (use [tldr](https://github.com/sahelea1) if already on PATH) \| `true` (install it) \| `false` | `auto` |
+| `extras.localEmbeddings` | install the local embedding stack for offline semantic memory | `false` |
+| `extras.mcpServers` | extra MCP servers merged verbatim into `opencode.json` | `{}` |
+| `autoconfig` | `enabled`, `prefer` (provider hint), `dryRun`, `fallbackModel` | enabled |
+| `reuseExistingCcV3` | reuse a detected Continuous-Claude-v3 Postgres for memory | `true` |
+| `forceStandalone` | ignore all CC-v3 reuse + force standalone | `false` |
 
-```jsonc
-{
-  "agent": {
-    "build":   { "model": "anthropic/claude-opus-4-8" },    // Anthropic for orchestrator
-    "kraken":  { "model": "openai/gpt-5.4" },               // OpenAI for implementation
-    "scout":   { "model": "anthropic/claude-sonnet-4-6" },  // Anthropic for exploration
-    "oracle":  { "model": "anthropic/claude-opus-4-7" }     // Anthropic for research
-  }
-}
-```
+`install.sh` translates this file into the plugin's runtime config — it writes a project `memory.json`
+and/or `.env` with the env vars the plugin reads. **The plugin itself never reads
+`continuous-code.config.jsonc`.** Both `continuous-code.config.jsonc`, `memory.json` and `.env` are
+gitignored.
 
-See `opencode.example.jsonc` for ready-to-copy patterns.
+Useful install flags: `--symlink` (contributor mode — link instead of copy), `--no-alias`,
+`--config <path>`, `--no-autoconfig`, `--dry-run`.
+
+### Install-time autoconfig
+
+When enabled (the default), the installer runs a headless, deterministic selector that:
+
+1. Inspects every provider, its auth status, available models, and reasoning-variant support.
+2. Picks models by tier — **orchestrator** gets the strongest reasoning model at the highest effort;
+   **heavy** workers get a strong model at `high`; **light** workers get a fast model at `low`.
+3. Writes the assignments into `opencode.json` (backing up the previous file to `.bak`).
+
+It assigns **only the project agents** — the `orchestrator` plus the 14 worker agent keys — and
+**never** touches native `build`/`plan`. If no provider is authenticated it keeps the committed
+`ollama-cloud/*` defaults and prints a hint so the install never fails. You can re-run it any time
+with the `/autoconfagent` slash command.
 
 ---
 
-## Usage
+## Memory & Recall
 
-### Agent Reference
+A self-contained, TypeScript-native long-term memory store. It records session learnings and pulls
+relevant ones back into context on future runs — no external service required by default.
 
-| Agent | When to Use |
-|-------|-------------|
-| scout | Read files, search code, understand codebase structure |
-| explore | Quick browse of a directory or file set |
-| oracle | Research external APIs, documentation, or web content |
-| sleuth | Investigate a bug, trace a root cause |
-| kraken | Implement a feature, write production code, run TDD loops |
-| spark | Small one-file fixes, quick edits, trivial changes |
-| arbiter | Run tests, verify correctness, check pass/fail |
-| judge | Review code quality, spot issues before merging |
-| plan-agent | Break a feature into a concrete implementation plan |
-| phoenix | Plan a refactor or migration across multiple files |
-| architect | Design a new feature or integration at the system level |
-| scribe | Write handoffs, update continuity ledgers, session notes |
-| memory-extractor | Pull learnings out of a session for future recall |
-| general | General-purpose heavy work that doesn't fit a specialist role |
+| Backend | When | Storage |
+|---|---|---|
+| **`sqlite`** (default) | zero-infra default | `~/.config/opencode/continuous/memory.db`, full-text recall via FTS5 |
+| **`postgres`** | shared/team or reuse of an existing pgvector db | `archival_memory` table, FTS + optional HNSW vector index |
+| **`none`** | disable entirely | no-op store, empty recall |
 
-You never invoke agents directly. The active orchestrator dispatches them based on your request or the active slash command.
+- **Recall is text-first.** Out of the box, recall uses BM25/FTS — fast, offline, API-key-free.
+- **Embeddings are opt-in.** Providers: `none` (default), `voyage`, `openai`, `ollama`, `local`.
+  When enabled, store does cosine-similarity dedup and recall blends semantic + text ranking. Against
+  a shared `vector(1024)` Postgres only 1024-dim providers (e.g. `voyage`) may be enabled; `openai`
+  (1536-dim) is SQLite-only. The installer enforces this.
+- **CC-v3 compatible.** The `archival_memory` schema mirrors Continuous-Claude-v3, so an existing
+  CC-v3 Postgres satisfies it as-is and can be reused opportunistically.
+- **Graceful degradation.** `better-sqlite3` / `pg` are optional, lazy-loaded deps. If a native
+  module can't load, memory disables itself with a one-line warning instead of crashing the plugin.
 
-### Command Pipelines
+How it surfaces:
 
-| Command | Pipeline |
-|---------|----------|
-| `/fix` | sleuth investigates -> spark or kraken implements -> arbiter verifies |
-| `/build` | architect or plan-agent plans -> kraken implements -> arbiter tests |
-| `/tdd` | plan-agent defines tests -> arbiter runs red -> kraken goes green -> arbiter confirms |
-| `/explore` | scout reads relevant code -> oracle researches if needed -> summary returned |
-| `/review` | scout reads changes -> judge reviews -> scribe records findings |
-| `/refactor` | phoenix plans -> kraken implements -> judge reviews -> arbiter verifies |
-| `/handoff` | scribe writes YAML handoff + updates continuity ledger |
-| `/resume` | scribe loads latest handoff -> context restored for next session |
-| `/consensus` | configure and control the multi-model consensus panel |
-| `/autoconfagent` | detect available providers and auto-assign optimal models to all agents |
+- **`memory_store`** tool — persist a learning (`content`, `type`, `context`, `tags`, `confidence`).
+- **`memory_recall`** tool — search learnings by text/semantic query.
+- **`memory-awareness` hook** — on each message, silently injects a `MEMORY MATCH` block of relevant
+  past learnings so the model benefits without being asked.
+- **`memory-extractor` agent** — mines a finished session for durable learnings and stores them
+  (falling back to writing `thoughts/ledgers/` if the backend is `none`).
+- **`compaction-handoff` hook** — best-effort persists session context as a learning when the context
+  window compacts.
 
----
-
-## Auto-Configuration: `/autoconfagent`
-
-Running `/autoconfagent` tells the LLM to inspect which providers are actually authenticated on your host, then automatically pick the best model and reasoning effort (`variant`) for every agent and write the result into `opencode.json`. You never hand-edit anything -- the command uses the `autoconfig_inspect` and `autoconfig_apply` tools to do this programmatically, with a `.bak` backup of your previous config.
-
-### What it does
-
-1. **Inspect** -- calls `autoconfig_inspect` to enumerate all providers, authentication status, available models, and reasoning variant support.
-2. **Choose** -- assigns models by role tier:
-   - **Orchestrators** (`build`, `plan`, `orchestrator`): strongest available model at the highest effort (`xhigh` if supported, otherwise `max`)
-   - **Heavy subagents** (`oracle`, `sleuth`, `kraken`, `judge`, `plan-agent`, `phoenix`, `architect`, `general`): strong model at `medium` or `high` effort
-   - **Light subagents** (`scout`, `spark`, `arbiter`, `scribe`, `memory-extractor`, `explore`): fast/cheap model at `low` effort
-3. **Apply** -- calls `autoconfig_apply` once with the full assignments map and reports a table of every change.
-4. **Report** -- shows you `agent | old model -> new model | effort` grouped by tier, then tells you to restart opencode.
-
-### Example: Anthropic-only host
-
-If only the Anthropic provider is authenticated, `/autoconfagent` would produce assignments like:
-
-```
-build           anthropic/claude-opus-4-8   xhigh
-plan            anthropic/claude-opus-4-8   xhigh
-orchestrator    anthropic/claude-opus-4-8   xhigh
-kraken          anthropic/claude-sonnet-4-6  high
-oracle          anthropic/claude-sonnet-4-6  high
-sleuth          anthropic/claude-sonnet-4-6  high
-architect       anthropic/claude-sonnet-4-6  high
-plan-agent      anthropic/claude-sonnet-4-6  high
-judge           anthropic/claude-sonnet-4-6  medium
-phoenix         anthropic/claude-sonnet-4-6  medium
-general         anthropic/claude-sonnet-4-6  medium
-scout           anthropic/claude-haiku-4-6   low
-spark           anthropic/claude-haiku-4-6   low
-arbiter         anthropic/claude-haiku-4-6   low
-scribe          anthropic/claude-haiku-4-6   low
-memory-extractor anthropic/claude-haiku-4-6  low
-explore         anthropic/claude-haiku-4-6   low
-```
-
-You can also pass a preference hint: `/autoconfagent prefer anthropic` or `/autoconfagent stay on the current providers`.
-
-After the command finishes, **restart opencode** for the new config to take effect.
+Runtime config lives in an optional project `memory.json` plus env vars
+(`MEMORY_BACKEND`, `MEMORY_DB_PATH`, `MEMORY_POSTGRES_URL`/`CONTINUOUS_CODE_DB_URL`,
+`MEMORY_EMBEDDINGS`, `MEMORY_DEDUP_THRESHOLD`, `MEMORY_RECALL_LIMIT`, …) — all written for you by
+the installer.
 
 ---
 
-## Handoff Format
+## Consensus
 
-Handoffs are stored as YAML at `thoughts/shared/handoffs/<session-slug>/<ISO-timestamp>.yaml`.
+An opt-in deliberation layer. When enabled, the orchestrator forms substantive answers by querying a
+**panel** of models — across providers, in parallel — and producing one combined answer. Exactly one
+panel member is the **main** model: it synthesizes the result, breaks ties, and may override dissent.
 
-```yaml
-goal: "What the session aimed to accomplish"    # REQUIRED
-now: "Current state / what was being worked on" # REQUIRED
-test: "Command to run tests"
-done_this_session:
-  - Item completed 1
-  - Item completed 2
-blockers: []
-questions:
-  - Open question 1
-decisions:
-  - Decision made 1
-findings:
-  - Discovery 1
-worked:
-  - Approach that succeeded
-failed:
-  - Approach that didn't work
-next:
-  - Next step 1
-  - Next step 2
-files:
-  - path/to/file1.ts
-  - path/to/file2.ts
-```
+- **Single instance, no recursion.** Only the primary orchestrator runs consensus; subagents it
+  spawns are ordinary single-model workers and cannot call `consensus_deliberate`.
+- **Two synthesis modes.** `main-judge` (client-side fan-out + main-model synthesis, works across
+  providers) or `fusion` (native OpenRouter Fusion, all members must be OpenRouter).
+- **Cross-provider panels.** Mix OpenRouter and ollama-cloud members, each with its own reasoning
+  effort (`none`–`xhigh`).
+- **Keys from env only.** Each provider names an `apiKeyEnv` (e.g. `OPENROUTER_API_KEY`); keys are
+  never stored in `consensus.json`.
 
-`goal` and `now` are required. All other fields are optional. Use `/resume` at the start of a new session to load the latest handoff and restore context.
-
-Continuity ledgers are markdown checklists at `thoughts/ledgers/CONTINUITY_<topic>.md`, tracking goals, completed items, in-progress work, and blockers across sessions.
-
----
-
-## Multi-Model Consensus
-
-A toggleable sub-plugin that layers on top of the agent-only orchestration model. When enabled, the primary orchestrator forms substantive answers, plans, decisions, and analyses by asking **multiple AI models in parallel** (across providers at once) and producing **one combined consensus answer**. A designated **main** model is dominant: it synthesizes the final answer, breaks ties, and may override dissent when justified. The result behaves like a normal model answer in OpenCode.
-
-### Concept
-
-- A **panel** of models is queried simultaneously -- for example OpenRouter models *and* ollama-cloud models at the same time, each with its own reasoning effort.
-- Exactly one panel member is the **main** (dominant) model. It is the tie-breaker.
-- The orchestrator calls `consensus_deliberate` to form any substantive answer and bases its reply on the returned consensus. All other tool usage and file edits still go through subagents via the `task` tool.
-- **Single instance, no recursion** -- there is exactly ONE consensus instance: the primary orchestrator. Subagents it spawns via `task` are ordinary single-model workers; they do NOT run consensus and cannot call `consensus_deliberate`. `consensus_deliberate` refuses to run in a child/sub-agent session, deliberations are serialized one-at-a-time within the process, and the system prompt reinforces that no subagent may run in consensus mode.
-
-### Configuration
-
-Consensus is configured in `consensus.json` at the project root (default **disabled** -- opt-in). See `consensus.example.jsonc` for a fully commented template.
-
-```json
-{
-  "enabled": false,
-  "synthesis": "main-judge",
-  "maxTokens": 1024,
-  "temperature": 0.3,
-  "providers": {
-    "openrouter": { "baseURL": "https://openrouter.ai/api/v1", "apiKeyEnv": "OPENROUTER_API_KEY" },
-    "ollama-cloud": { "baseURL": "https://ollama.com/v1", "apiKeyEnv": "OLLAMA_API_KEY" }
-  },
-  "panel": [
-    { "id": "opus", "provider": "openrouter", "model": "anthropic/claude-opus-4.6", "reasoning": "high", "main": true },
-    { "id": "grok", "provider": "openrouter", "model": "x-ai/grok-4", "reasoning": "medium" },
-    { "id": "deepseek", "provider": "ollama-cloud", "model": "deepseek-v4-pro", "reasoning": "low" }
-  ]
-}
-```
-
-- **Toggle** with the `consensus_toggle` / `consensus_configure` tools (or `/consensus on|off`), or via the `CONSENSUS_ENABLED` env var. You normally never edit `consensus.json` by hand -- see *Managing consensus from the OpenCode TUI* below.
-- **Per-model reasoning effort** -- `none|minimal|low|medium|high|xhigh`, applied for OpenRouter models only (ignored for ollama-cloud, which has no reasoning object).
-- **Cross-provider mixing** -- list members on different providers; OpenRouter and ollama-cloud are queried in parallel.
-- **`requireParameters`** (default `false`) -- when `false`, OpenRouter drops unsupported params (e.g. `reasoning`) so models still answer (graceful degradation); set `true` for strict reasoning routing (404s if an endpoint lacks `reasoning`), and only when the whole panel is curated to reasoning-capable models.
-
-### Synthesis modes
-
-| Mode | How it works | Constraint |
-|------|--------------|-----------|
-| `main-judge` (default) | Client-side fan-out: all panel models answer in parallel, then the main model synthesizes one answer and reports an agreement score plus whether it overrode dissent. | Works across providers |
-| `fusion` | Native OpenRouter Fusion: a single OpenRouter request runs all analysis models + a judge server-side. | All panel members must use the `openrouter` provider |
-
-### Environment variables
-
-- `OPENROUTER_API_KEY` -- required for OpenRouter models.
-- `OLLAMA_API_KEY` -- for ollama-cloud models (if your endpoint requires auth).
-
-Keys are read only from these env vars (named by each provider's `apiKeyEnv`); never store keys in `consensus.json`. Use `consensus_status` to see which keys are present (reported as `set`/`missing`, never the value).
-
-### Tools
+You never hand-edit `consensus.json` — the interactive **`/consensus`** wizard and tools write it for
+you. The wizard covers the basics (enable/disable, list/search models, add/remove panel members,
+set-main, per-model reasoning, synthesis mode) **and** advanced settings:
 
 | Tool | Purpose |
-|------|---------|
+|---|---|
 | `consensus_deliberate` | Get a combined consensus answer from the panel |
-| `consensus_status` | Inspect config, panel, and provider key availability |
-| `consensus_toggle` | Enable/disable consensus mode |
-| `consensus_configure` | Enable/disable, add/remove panel models, set main/synthesis/reasoning, clear |
-| `consensus_models` | List/search models available for the panel (from OpenRouter) |
+| `consensus_status` | Inspect config, panel, and provider-key availability |
+| `consensus_toggle` | Enable / disable consensus mode |
+| `consensus_configure` | Enable/disable, add/remove members, set main/synthesis/reasoning, plus advanced: `temperature`, `maxTokens`, `agreementThreshold`, `timeoutMs`, `requireParameters`, custom `providers` |
+| `consensus_models` | List/search panel-eligible models |
 
-### Managing consensus from the OpenCode TUI
-
-You control everything from the terminal -- by chatting or via the `/consensus` slash command. **You never hand-edit `consensus.json`**; the plugin writes it programmatically through the tools above (all writes share one serializer).
-
-In plain chat, just describe what you want, e.g.:
-
-> enable consensus with grok-4 and claude-opus, make opus the main with high reasoning
-
-The orchestrator maps that to `consensus_configure` calls (`action=add`, `action=set-main`, `action=set-reasoning`, `action=enable`) and confirms with `consensus_status`.
-
-Via the `/consensus` command, quick subcommands act immediately:
-
-| Subcommand | Effect |
-|------------|--------|
-| `/consensus` (no args) | Interactive setup: lists models, asks which to include, which is main, reasoning per model |
-| `/consensus on` \| `off` | Enable / disable consensus |
-| `/consensus status` | Show current state |
-| `/consensus list [search]` | List/search available models (`consensus_models`) |
-| `/consensus add <slug> [reasoning]` | Add a model to the panel |
-| `/consensus remove <id\|slug>` | Remove a panel member |
-| `/consensus main <id>` | Set the dominant main model |
-| `/consensus synthesis <main-judge\|fusion>` | Set synthesis mode |
-| `/consensus reasoning <id> <effort>` | Set a member's reasoning effort |
-| `/consensus clear` | Empty the panel |
-
-Use `consensus_models` to discover slugs/prices/reasoning support, then `consensus_configure action=add model=<slug>` to add them.
-
-### Cost note
-
-Running multiple premium models in parallel multiplies cost -- every deliberation issues one request per panel member plus (in `main-judge` mode) one synthesis call by the main model. Keep the panel small and reasoning effort proportionate, and prefer cheaper models for non-main members.
+```
+/consensus                          # interactive setup
+/consensus on | off                 # enable / disable
+/consensus add <slug> [reasoning]   # add a panel member
+/consensus main <id>                # set the dominant model
+/consensus synthesis main-judge|fusion
+```
 
 ---
 
-## Architecture
+## Agents & Commands
 
-### Orchestrator Design
+continuous-code ships **1 project orchestrator + 12 worker subagents + 7 `*-openai` variants**.
+OpenCode's native `build`, `plan`, `general`, and `explore` modes are left to OpenCode and are not
+redefined by this project.
 
-There are three orchestrator agents. All three have identical permission policies: every direct-action tool (`read`, `grep`, `glob`, `list`, `bash`, `edit`, `webfetch`, `websearch`) is denied. The only permitted tools are `task`, `todowrite`, `skill`, and `question`.
+### Agents
 
-| Agent | Primary Use | Notes |
-|-------|------------|-------|
-| `build` | General build and implementation workflows | Registered as `default_agent` |
-| `plan` | Planning-heavy workflows, feature decomposition | Routed by `/build`, `/tdd` |
-| `orchestrator` | General-purpose orchestration | `max` variant, 200 steps, temperature 0.7 |
+| Agent | Tier | Role | OpenAI variant |
+|---|---|---|---|
+| **orchestrator** *(default)* | Orchestrator | Decomposes & delegates all work; never acts directly | — |
+| scout | Light | Read files, search code, map structure | — |
+| spark | Light | Small one-file fixes / quick edits | — |
+| arbiter | Light | Run tests, verify pass/fail | — |
+| scribe | Light | Handoffs, ledgers, docs | — |
+| memory-extractor | Light | Mine session learnings into memory | — |
+| oracle | Heavy | External research & documentation | oracle-openai |
+| sleuth | Heavy | Bug investigation, root-cause | sleuth-openai |
+| kraken | Heavy | Implementation, TDD loops | kraken-openai |
+| judge | Heavy | Code review & quality gate | judge-openai |
+| plan-agent | Heavy | Break a feature into a plan | plan-agent-openai |
+| phoenix | Heavy | Refactor / migration planning | phoenix-openai |
+| architect | Heavy | System & integration design | architect-openai |
 
-All three instruct the model to spawn subagents in parallel wherever tasks are independent, and to use `*-openai` variants only for the hardest reasoning or second opinions.
+The `*-openai` variants run at high reasoning effort and are used only when a standard worker is
+insufficient. You never invoke agents directly — the orchestrator dispatches them.
 
-### Two-Layer Enforcement
+### Slash commands
 
-```
-  User prompt
-       |
-       v
-  +--------------------+
-  |  Orchestrator      |  Layer 1: frontmatter permissions
-  |  (build / plan /   |  read, grep, glob, list, bash,
-  |   orchestrator)    |  webfetch, websearch, edit = "deny"
-  |                    |  task, todowrite, skill, question = "allow"
-  +---------+----------+
-            |
-            | task tool only
-            v
-  +---------+----------+
-  |  Subagent          |  Layer 2: plugin hook
-  |  (scout, kraken,   |  enforce-agent-only.ts intercepts
-  |   sleuth, etc.)    |  denied tool prompts and rewrites
-  |                    |  the error to name the correct
-  +---------+----------+  subagent -- model learns the
-            |              delegation pattern
-            v
-  +---------+----------+
-  |  Tool execution    |
-  |  (read, bash,      |
-  |   edit, grep ...)  |
-  +--------------------+
-```
+| Command | Pipeline |
+|---|---|
+| `/fix` | sleuth investigates → spark/kraken fixes → arbiter verifies → handoff |
+| `/build` | architect/plan-agent plans → kraken implements → arbiter tests → judge reviews |
+| `/tdd` | plan-agent defines tests → arbiter runs red → kraken goes green → arbiter confirms |
+| `/explore` | parallel scouts explore from multiple angles → findings synthesized (uses `tldr` if enabled) |
+| `/review` | scout + judge + arbiter review in parallel → unified findings |
+| `/refactor` | phoenix plans → kraken implements → judge reviews → arbiter verifies (uses `tldr` if enabled) |
+| `/handoff` | scribe writes a YAML handoff + updates the continuity ledger |
+| `/resume` | scribe loads the latest handoff → restores context → routes to the right agent |
+| `/consensus` | interactive multi-model consensus configuration & control |
+| `/autoconfagent` | detect authenticated providers → auto-assign optimal models + effort to the orchestrator and workers |
 
-Both layers are required. The frontmatter blocks the tool call; the hook makes the error message actionable so the model corrects itself.
+### Hooks
 
-### Plugin Hooks
+| Hook | Purpose |
+|---|---|
+| `enforce-agent-only` | Rewrites denied-tool errors to name the right subagent (scoped to `orchestrator`) |
+| `session-start` | Initializes session state & continuity context |
+| `skill-activation` | Detects intent keywords and routes to the right pipeline |
+| `compaction-handoff` | Auto-saves a handoff (and a best-effort learning) when context compacts |
+| `memory-awareness` | Injects relevant past learnings (`MEMORY MATCH`) into each message |
+| `consensus-mode` | Injects consensus instructions into the orchestrator when consensus is enabled |
 
-| Hook | File | Purpose |
-|------|------|---------|
-| enforce-agent-only | `src/hooks/enforce-agent-only.ts` | Rewrites denied-tool errors to name the correct subagent |
-| session-start | `src/hooks/session-start.ts` | Initializes session state and continuity context |
-| skill-activation | `src/hooks/skill-activation.ts` | Detects intent keywords and routes to agent pipelines |
-| compaction-handoff | `src/hooks/compaction-handoff.ts` | Auto-saves a handoff when context window compacts |
-| memory-awareness | `src/hooks/memory-awareness.ts` | Surfaces relevant learnings from prior sessions |
-| consensus-mode | `src/hooks/consensus-mode.ts` | Injects multi-model consensus instructions into the primary agent's system prompt when consensus is enabled |
+### Custom tools
 
-### Custom Tools
-
-| Tool | File | Purpose |
-|------|------|---------|
-| handoff_save | `src/tools/handoff-save.ts` | Write a YAML handoff to `thoughts/shared/handoffs/` |
-| handoff_load | `src/tools/handoff-load.ts` | Load the latest handoff for a session |
-| ledger_update | `src/tools/ledger-update.ts` | Update a continuity ledger in `thoughts/ledgers/` |
-| parallel_delegate | `src/tools/parallel-delegate.ts` | Spawn multiple subagents concurrently |
-| autoconfig_inspect | `src/tools/autoconfig.ts` | Enumerate providers, models, and auth status |
-| autoconfig_apply | `src/tools/autoconfig.ts` | Write per-agent model + effort assignments to `opencode.json` |
+`handoff_save` · `handoff_load` · `ledger_update` · `parallel_delegate` ·
+`memory_store` · `memory_recall` ·
+`consensus_deliberate` · `consensus_status` · `consensus_toggle` · `consensus_configure` · `consensus_models` ·
+`autoconfig_inspect` · `autoconfig_apply`
 
 ---
 
-## Docker
+## Requirements
 
-### Running Tests
+- **[OpenCode](https://opencode.ai) ≥ 1.14.0**
+- **git**, **node ≥ 18**, and **bash**
+- **`npm` or `bun`** (the installer uses whichever is present)
+- **Docker** — *optional*, only for `memory.mode = postgres` with `provision: docker`
+- **No API keys required** for the default setup (SQLite memory, text-only recall, free
+  ollama-cloud/Z.AI models). Provider keys are needed only for the providers you choose to use.
 
-```bash
-bash tests/docker/run.sh
-```
-
-Prerequisites: Docker installed, `opencode auth login` completed (credentials read from `~/.local/share/opencode/auth.json`).
-
-The test suite runs 6 scenarios in an isolated container:
-
-| Scenario | What it verifies |
-|----------|-----------------|
-| Agent-only enforcement | Primary agent cannot read/grep/bash directly |
-| Handoff round-trip | Write then load a YAML handoff |
-| Resume | Load handoff and restore context |
-| Parallel delegation | Multiple subagents spawned concurrently |
-| Model swap | Override a single agent's model via config |
-| CC-v3 compatibility | Handoff format matches CC-v3 spec |
-
-### Using launch.sh
-
-`launch.sh` runs an interactive opencode session inside a Docker container with the plugin pre-installed:
-
-```bash
-# Launch with your project mounted at /workspace
-./launch.sh /path/to/your/project
-
-# Launch with the current directory
-./launch.sh .
-```
-
-The container mounts your project read-write, so all file changes persist on the host. Auth credentials are forwarded from `~/.local/share/opencode/auth.json`.
-
----
-
-## Adding a New Agent
-
-1. Create `agents/my-agent.md` with frontmatter:
-
-```markdown
----
-model: "ollama-cloud/deepseek-v4-flash"
-mode: "subagent"
-description: "When the primary agent should use this agent"
-permission:
-  read: "allow"
-  edit: "deny"
-  bash: "deny"
----
-
-System prompt for my-agent goes here.
-```
-
-2. Add a model config entry to `opencode.json`:
-
-```json
-{
-  "agent": {
-    "my-agent": { "model": "ollama-cloud/deepseek-v4-flash" }
-  }
-}
-```
-
-3. Reinstall to deploy the new agent file:
-
-```bash
-./install.sh
-```
+The plugin builds with `tsc` only (no bundler). Native memory deps (`better-sqlite3`, `pg`) are
+optional and lazy-loaded.
 
 ---
 
@@ -593,18 +290,21 @@ System prompt for my-agent goes here.
 ./uninstall.sh
 ```
 
-This removes agent and command files from `~/.config/opencode/agents/` and `~/.config/opencode/commands/` that were installed by this plugin. It does **not** remove:
+This removes the agent and command files that were installed into `~/.config/opencode/`, and offers
+to bring down the standalone Postgres container (`docker compose -f db/docker-compose.yml down`) and
+remove the generated `.env`. It does **not** remove:
 
 - `opencode.json` (your project config)
 - `thoughts/` (your session data)
+- the SQLite memory file at `~/.config/opencode/continuous/memory.db`
 - `dist/` (built plugin output)
 
-To remove session data manually: `rm -rf thoughts/`
-
-The installer-added shell alias is not removed automatically. To remove it, delete the `opencode-continuous` alias block from your `~/.bashrc` or `~/.zshrc`.
+The installer-added shell alias is not removed automatically — delete the `continuous-code`/`opencode`
+alias block from your `~/.bashrc` or `~/.zshrc` if you no longer want it.
 
 ---
 
 ## License
 
-MIT
+MIT — see the repository for details. Project home:
+[github.com/sahelea1/continuous-code](https://github.com/sahelea1/continuous-code).

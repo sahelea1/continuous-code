@@ -6,3 +6,8 @@ tests/docker/scratch/
 tests/docker/.host-auth/
 thoughts/
 .opencode/
+
+# continuous-code: live (user-edited) config + runtime files (examples stay tracked)
+continuous-code.config.jsonc
+.env
+memory.json
