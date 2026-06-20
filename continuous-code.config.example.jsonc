@@ -37,11 +37,16 @@
   //
   // !! CC-v3 REUSE POLICY (important) !!
   // By default (reuseExistingCcV3:true, forceStandalone:false) the installer
-  // OPPORTUNISTICALLY REUSES a detected Continuous-Claude-v3 postgres
-  // (container `continuous-claude-postgres`, db `continuous_claude` on :5432)
-  // for memory — this OVERRIDES the sqlite default below even when "mode" is
-  // left at "sqlite". That is the intended "utilize it when present" behavior.
-  // For a GUARANTEED pure-sqlite install, set ONE of:
+  // OPPORTUNISTICALLY REUSES a detected Continuous-Claude-v3 postgres SERVER
+  // (container `continuous-claude-postgres` on :5432) for memory — this
+  // OVERRIDES the sqlite default below even when "mode" is left at "sqlite".
+  // That is the intended "utilize it when present" behavior.
+  // ISOLATION GUARANTEE: even when reusing, continuous-code creates and uses its
+  // OWN database `continuous_code` on that server — it NEVER reads or writes
+  // CC-v3's `continuous_claude` db. The two installs share only the server
+  // process, so they run simultaneously without disturbing each other's
+  // memory / sessions / file_claims / handoffs.
+  // For a GUARANTEED pure-sqlite install (no postgres at all), set ONE of:
   //   - "reuseExistingCcV3": false   (see bottom of this file), OR
   //   - "forceStandalone": true      (see bottom of this file), OR
   //   - an explicit "memory.postgres.url" (a url always wins over detection).
@@ -140,11 +145,12 @@
   },
 
   // ========================================================================
-  // CC-v3 OPPORTUNISTIC REUSE — detect & reuse an existing Continuous-Claude-v3.
-  // See the MEMORY block above for the full reuse policy. Set this to false for
-  // a guaranteed pure-sqlite/standalone memory install.
+  // CC-v3 OPPORTUNISTIC REUSE — detect & reuse an existing Continuous-Claude-v3
+  // postgres SERVER (in our own isolated `continuous_code` db — never CC-v3's
+  // `continuous_claude`). See the MEMORY block above for the full reuse policy.
+  // Set this to false for a guaranteed pure-sqlite/standalone memory install.
   // ========================================================================
-  "reuseExistingCcV3": true, // false => force standalone, ignore any CC-v3 db/tldr
+  "reuseExistingCcV3": true, // false => force standalone, ignore any CC-v3 server/tldr
 
   // ========================================================================
   // WORKFLOWS / ULTRACODE — dynamic multi-agent workflow engine.

@@ -171,18 +171,23 @@ if [ -n "$PG_URL" ]; then
 fi
 
 # CC-v3 opportunistic detection (only when allowed and no explicit url).
+# IMPORTANT: we reuse the CC-v3 postgres SERVER (to avoid a second container /
+# extra resources) but always in our OWN isolated database `continuous_code`,
+# NEVER CC-v3's `continuous_claude`. The two installs therefore never share
+# memory / sessions / file_claims / handoffs rows and can run simultaneously.
 CCV3_DB_URL=""
 if [ "$REUSE_CCV3" = "true" ] && [ "$FORCE_STANDALONE" != "true" ] && [ -z "$PG_URL" ]; then
   if command -v docker >/dev/null 2>&1; then
     if docker ps --format '{{.Names}}' 2>/dev/null | grep -qx 'continuous-claude-postgres' \
-       && docker exec continuous-claude-postgres pg_isready -U claude -d continuous_claude >/dev/null 2>&1; then
-      CCV3_DB_URL="postgresql://claude:claude_dev@127.0.0.1:5432/continuous_claude"
+       && docker exec continuous-claude-postgres pg_isready -U claude -d postgres >/dev/null 2>&1; then
+      CCV3_DB_URL="postgresql://claude:claude_dev@127.0.0.1:5432/continuous_code"
     fi
   fi
 fi
 
-# Policy (R4): reuse a detected CC-v3 db for memory unless the user explicitly
-# opted out (reuseExistingCcV3:false / forceStandalone:true / explicit url).
+# Policy (R4): reuse a detected CC-v3 postgres SERVER (in our own isolated db)
+# for memory unless the user explicitly opted out (reuseExistingCcV3:false /
+# forceStandalone:true / explicit url).
 # This OVERRIDES the sqlite default — the intended "utilize when present" behavior.
 if [ -n "$CCV3_DB_URL" ] && { [ "$MEM_MODE" = "sqlite" ] || [ "$MEM_MODE" = "postgres" ]; }; then
   MEMORY_BACKEND="postgres"
@@ -238,7 +243,7 @@ print_summary() {
 }
 
 if [ "$MEMORY_REUSED_CCV3" = "true" ]; then
-  say "Reusing existing CC-v3 postgres at :5432/continuous_claude for memory."
+  say "Reusing CC-v3 postgres SERVER at :5432 in our own DB 'continuous_code' (isolated from CC-v3's 'continuous_claude')."
 fi
 
 print_summary
@@ -433,6 +438,15 @@ apply_pg_schema_docker() { # <container> <user> <db>
   fi
 }
 
+# Create a database in an existing container if it does not already exist.
+# Used when reusing the CC-v3 SERVER: we create our own isolated `continuous_code`
+# db there without ever touching CC-v3's `continuous_claude`.
+ensure_pg_database_docker() { # <container> <user> <db>
+  local container="$1" user="$2" db="$3"
+  say "Ensuring database '$db' exists in $container (isolated from CC-v3)..."
+  run "docker exec \"$container\" psql -U \"$user\" -d postgres -tAc \"SELECT 1 FROM pg_database WHERE datname='$db'\" | grep -q 1 || docker exec \"$container\" createdb -U \"$user\" \"$db\""
+}
+
 case "$MEMORY_BACKEND" in
   sqlite)
     say "Memory: sqlite at $MEM_SQLITE_PATH"
@@ -443,8 +457,10 @@ case "$MEMORY_BACKEND" in
     ;;
   postgres)
     if [ "$MEMORY_REUSED_CCV3" = "true" ]; then
-      # Re-apply schema to the reused CC-v3 db (idempotent).
-      apply_pg_schema_docker "continuous-claude-postgres" "claude" "continuous_claude"
+      # Reuse the CC-v3 postgres SERVER but in our OWN isolated database so the
+      # two installs never share memory/sessions/file_claims/handoffs rows.
+      ensure_pg_database_docker "continuous-claude-postgres" "claude" "continuous_code"
+      apply_pg_schema_docker "continuous-claude-postgres" "claude" "continuous_code"
     elif [ -n "$PG_URL" ]; then
       say "Memory: postgres (explicit url). Schema is applied by the backend on first open."
     else

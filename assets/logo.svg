@@ -1,56 +1,85 @@
-<svg width="680" height="200" viewBox="0 0 680 200" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="continuous-code">
+<svg width="520" height="160" viewBox="0 0 520 160" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="continuous-code">
   <title>continuous-code</title>
-  <defs>
-    <!-- Continuity gradient: reads on light and dark backgrounds -->
-    <linearGradient id="cc-grad" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0" stop-color="#7C5CFF"/>
-      <stop offset="0.5" stop-color="#4F8CFF"/>
-      <stop offset="1" stop-color="#22D3A6"/>
-    </linearGradient>
-    <linearGradient id="cc-grad-soft" x1="0" y1="0" x2="1" y2="0">
-      <stop offset="0" stop-color="#7C5CFF"/>
-      <stop offset="1" stop-color="#22D3A6"/>
-    </linearGradient>
-    <style>
-      .cc-word  { fill: #0B1020; }
-      .cc-sub   { fill: #5B6478; }
-      @media (prefers-color-scheme: dark) {
-        .cc-word { fill: #F2F4FA; }
-        .cc-sub  { fill: #9AA3B8; }
-      }
-    </style>
-  </defs>
 
-  <!-- Mark: an infinity loop (continuity) drawn as two code-bracket strokes -->
-  <g transform="translate(28 44)" fill="none" stroke="url(#cc-grad)" stroke-width="13"
-     stroke-linecap="round" stroke-linejoin="round">
-    <!-- continuous loop -->
-    <path d="M58 56
-             C58 28 36 18 22 32
-             C8 46 8 66 22 80
-             C36 94 58 84 58 56
-             C58 28 80 18 94 32
-             C108 46 108 66 94 80
-             C80 94 58 84 58 56 Z"/>
+  <!--
+    Logo concept: Orchestration fan-out + continuity ring
+    One central hub branches to three satellite nodes via curved spokes.
+    The outer satellites sit on a shared arc, implying a continuous loop.
+    Palette: #7C5CFF (purple), #4F8CFF (blue), #22D3A6 (teal/green), #5B6478 (slate)
+    All fills/strokes are inline — no CSS classes, no external fonts, no filters.
+    Works on GitHub light and dark backgrounds.
+  -->
+
+  <!-- ── MARK (80×160 canvas, centred at 80,80) ── -->
+  <g transform="translate(0,0)">
+
+    <!-- Outer continuity ring (arc, not full circle — implies open/ongoing) -->
+    <!-- A circle stroke clipped to ~300° so it reads as a continuous arc -->
+    <circle cx="80" cy="80" r="62" stroke="#4F8CFF" stroke-width="5" stroke-opacity="0.45" fill="none"
+            stroke-dasharray="340 50" stroke-dashoffset="25"
+            stroke-linecap="round"/>
+
+    <!-- Spoke: hub → top-right satellite -->
+    <line x1="80" y1="80" x2="127" y2="33" stroke="#7C5CFF" stroke-width="4" stroke-linecap="round" opacity="0.7"/>
+    <!-- Spoke: hub → bottom-right satellite -->
+    <line x1="80" y1="80" x2="134" y2="97" stroke="#4F8CFF" stroke-width="4" stroke-linecap="round" opacity="0.7"/>
+    <!-- Spoke: hub → bottom satellite -->
+    <line x1="80" y1="80" x2="80" y2="145" stroke="#22D3A6" stroke-width="4" stroke-linecap="round" opacity="0.7"/>
+
+    <!-- Curved connector between top-right and bottom-right satellites (fan arc) -->
+    <path d="M127 33 Q158 65 134 97" stroke="#5B6478" stroke-width="2.5" stroke-linecap="round" fill="none" opacity="0.5"/>
+    <!-- Curved connector between bottom-right and bottom satellites -->
+    <path d="M134 97 Q122 128 80 145" stroke="#5B6478" stroke-width="2.5" stroke-linecap="round" fill="none" opacity="0.5"/>
+
+    <!-- Hub node — gradient effect via two overlapping circles -->
+    <circle cx="80" cy="80" r="18" fill="#7C5CFF"/>
+    <circle cx="80" cy="80" r="18" fill="#4F8CFF" opacity="0.45"/>
+    <!-- Hub inner ring (code bracket feel) -->
+    <circle cx="80" cy="80" r="10" fill="none" stroke="#F2F4FA" stroke-width="3.5" opacity="0.9"/>
+
+    <!-- Satellite: top-right (purple) -->
+    <circle cx="127" cy="33" r="11" fill="#7C5CFF"/>
+    <circle cx="127" cy="33" r="5"  fill="#F2F4FA" opacity="0.85"/>
+
+    <!-- Satellite: right (blue) -->
+    <circle cx="134" cy="97" r="11" fill="#4F8CFF"/>
+    <circle cx="134" cy="97" r="5"  fill="#F2F4FA" opacity="0.85"/>
+
+    <!-- Satellite: bottom (teal) -->
+    <circle cx="80" cy="145" r="11" fill="#22D3A6"/>
+    <circle cx="80" cy="145" r="5"  fill="#F2F4FA" opacity="0.85"/>
+
+    <!-- Subtle SMIL pulse on hub (optional, static fallback looks fine) -->
+    <circle cx="80" cy="80" r="18" fill="none" stroke="#7C5CFF" stroke-width="2" opacity="0">
+      <animate attributeName="r" values="18;28;18" dur="3s" repeatCount="indefinite"/>
+      <animate attributeName="opacity" values="0.6;0;0.6" dur="3s" repeatCount="indefinite"/>
+    </circle>
+
   </g>
 
-  <!-- Code carets sitting inside the loop centre -->
-  <g transform="translate(28 44)" fill="none" stroke="#FFFFFF" stroke-width="5.5"
-     stroke-linecap="round" stroke-linejoin="round" opacity="0.95">
-    <path d="M46 44 L37 56 L46 68"/>
-    <path d="M70 44 L79 56 L70 68"/>
+  <!-- ── WORDMARK ── -->
+  <!-- "continuous" in bold geometric sans, slate-adjacent for dual-mode readability -->
+  <!-- Using SVG text with safe system font stack; GitHub renders SVG text as paths in its viewer -->
+  <g transform="translate(185, 52)">
+
+    <!-- "continuous" — primary weight, mid-tone so it reads on light and dark -->
+    <text
+      x="0" y="0"
+      font-family="'Helvetica Neue', Arial, 'Liberation Sans', sans-serif"
+      font-size="44"
+      font-weight="700"
+      letter-spacing="-0.5"
+      fill="#4F8CFF">continuous</text>
+
+    <!-- "-code" — teal accent, monospace flavour via letter-spacing nudge -->
+    <text
+      x="0" y="52"
+      font-family="'Courier New', 'Courier', monospace"
+      font-size="44"
+      font-weight="700"
+      letter-spacing="-0.5"
+      fill="#22D3A6">-code</text>
+
   </g>
 
-  <!-- Wordmark -->
-  <g transform="translate(170 0)">
-    <text x="0" y="92" class="cc-word"
-          font-family="'Segoe UI', 'Helvetica Neue', Arial, sans-serif"
-          font-size="58" font-weight="700" letter-spacing="-1.5">continuous</text>
-    <text x="0" y="152" fill="url(#cc-grad-soft)"
-          font-family="'JetBrains Mono','SFMono-Regular',Consolas,'Liberation Mono',monospace"
-          font-size="56" font-weight="700" letter-spacing="-1">-code</text>
-    <text x="335" y="152" class="cc-sub"
-          font-family="'JetBrains Mono','SFMono-Regular',Consolas,monospace"
-          font-size="20" font-weight="500" letter-spacing="0">{ }</text>
-  </g>
 </svg>
