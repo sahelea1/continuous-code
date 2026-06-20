@@ -7,6 +7,29 @@
 // Tip: Run /autoconfagent to let the system auto-pick models based on your available providers.
 {
   "$schema": "https://opencode.ai/config.json",
+
+  // === FRICTIONLESS AUTOMATION (no permission prompts) ===
+  // The workflow worker agents (scout, oracle, sleuth, kraken, spark, arbiter,
+  // judge, plan-agent, phoenix, architect, scribe, memory-extractor, general,
+  // explore) are spawned head-less by the engine via the SDK (no TUI to answer
+  // prompts), so they must run with permissions PRE-ALLOWED. The cleanest way is
+  // a TOP-LEVEL "permission" allow block as the base for every agent, then the
+  // delegation-only agents (orchestrator / ultra-orchestrator / drift-watcher)
+  // override it back to "deny" per-agent. Per-agent permission MERGES with this
+  // top-level base, so denials must be listed explicitly. To tighten things up,
+  // change any "allow" below to "ask" (prompt) or "deny" (block).
+  "permission": {
+    "read": "allow",
+    "edit": "allow",
+    "write": "allow",
+    "bash": "allow",
+    "grep": "allow",
+    "glob": "allow",
+    "list": "allow",
+    "webfetch": "allow",
+    "websearch": "allow"
+  },
+
   "agent": {
     // Use OpenAI GPT-5.5 for implementation
     "kraken": { "model": "openai/gpt-5.5" },
@@ -19,6 +42,55 @@
 
     // Example: Anthropic provider — use Claude for planning and review
     "plan-agent": { "model": "anthropic/claude-opus-4-7" },
-    "judge": { "model": "anthropic/claude-sonnet-4-6" }
+    "judge": { "model": "anthropic/claude-sonnet-4-6" },
+
+    // === Delegation-only agents: deny built-ins so they can ONLY delegate. ===
+    // These MERGE with (and override) the top-level allow base above, so every
+    // built-in capability must be denied explicitly here.
+    "orchestrator": {
+      "permission": {
+        "read": "deny",
+        "edit": "deny",
+        "write": "deny",
+        "bash": "deny",
+        "grep": "deny",
+        "glob": "deny",
+        "list": "deny",
+        "webfetch": "deny",
+        "websearch": "deny"
+      }
+    },
+
+    // ultra-orchestrator: deny built-ins, but ENABLE the custom `ultracode` tool
+    // (its sole instrument). The `tools` map governs tool VISIBILITY and is
+    // separate from `permission` (which governs whether a visible tool runs).
+    "ultra-orchestrator": {
+      "tools": { "ultracode": true },
+      "permission": {
+        "read": "deny",
+        "edit": "deny",
+        "write": "deny",
+        "bash": "deny",
+        "grep": "deny",
+        "glob": "deny",
+        "list": "deny",
+        "webfetch": "deny",
+        "websearch": "deny"
+      }
+    },
+
+    "drift-watcher": {
+      "permission": {
+        "read": "deny",
+        "edit": "deny",
+        "write": "deny",
+        "bash": "deny",
+        "grep": "deny",
+        "glob": "deny",
+        "list": "deny",
+        "webfetch": "deny",
+        "websearch": "deny"
+      }
+    }
   }
 }

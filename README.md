@@ -118,12 +118,18 @@ The dashboard is a standalone local server (not embedded in OpenCode's web UI �
 
 ### Terminal UI
 
-Prefer a terminal view? In a second terminal:
+After running `install.sh`, the `continuous-code-workflow-tui` command is placed on your PATH via a symlink in `~/.local/bin`. Open a new shell (or `source ~/.zshrc` / `source ~/.bashrc`) for it to be available, then in a second terminal:
 
 ```bash
 continuous-code-workflow-tui
 # or if you changed the port:
 continuous-code-workflow-tui --port 7878
+```
+
+If the command is not found after sourcing your rc file, use the direct node fallback:
+
+```bash
+node ~/.config/opencode/node_modules/opencode-continuous/dist/workflow/tui/cli.js
 ```
 
 Three-level drill-down: phases → agents → activity/outcome. Arrow keys to navigate, Enter to drill in, Escape to go back, `q` to quit.

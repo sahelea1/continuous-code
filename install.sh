@@ -695,6 +695,62 @@ else
 fi
 
 # ============================================================================
+# Expose plugin CLIs on PATH via ~/.local/bin symlinks
+# ============================================================================
+if [ "$COMP_PLUGIN" = "true" ]; then
+  LOCAL_BIN="$HOME/.local/bin"
+  TUI_SRC="$PLUGIN_DIR/dist/workflow/tui/cli.js"
+  AUTOCONFIG_SRC="$PLUGIN_DIR/dist/autoconfig/cli.js"
+  TUI_DST="$LOCAL_BIN/continuous-code-workflow-tui"
+  AUTOCONFIG_DST="$LOCAL_BIN/continuous-code-autoconfig"
+
+  say "Exposing plugin CLIs on PATH via $LOCAL_BIN..."
+  run "mkdir -p \"$LOCAL_BIN\""
+
+  # Make the dist cli.js targets executable
+  if [ "$DRY_RUN" != true ]; then
+    [ -f "$TUI_SRC" ]        && chmod +x "$TUI_SRC"
+    [ -f "$AUTOCONFIG_SRC" ] && chmod +x "$AUTOCONFIG_SRC"
+  fi
+
+  # Create (or refresh) symlinks idempotently
+  PATH_MARKER='continuous-code-live'
+  for pair in "$TUI_DST:$TUI_SRC" "$AUTOCONFIG_DST:$AUTOCONFIG_SRC"; do
+    dst="${pair%%:*}"
+    src="${pair#*:}"
+    name="$(basename "$dst")"
+    if [ -L "$dst" ] && [ "$(readlink "$dst")" = "$src" ]; then
+      say "  $name (symlink already up to date)"
+    else
+      run "ln -sf \"$src\" \"$dst\""
+      say "  $name (symlinked -> $src)"
+    fi
+  done
+
+  # If ~/.local/bin is not on PATH, append an export line to the shell rc (same pattern as the opencode alias above)
+  if [ -n "${RC_FILE:-}" ]; then
+    BIN_PATH_MARKER='CONTINUOUS_CODE_LOCAL_BIN'
+    if echo "${PATH:-}" | grep -q "$LOCAL_BIN"; then
+      say "  $LOCAL_BIN is already on PATH"
+    elif grep -q "$BIN_PATH_MARKER" "$RC_FILE" 2>/dev/null; then
+      say "  PATH export for $LOCAL_BIN already configured in $RC_FILE (skipping)"
+    else
+      if [ "$DRY_RUN" != true ]; then
+        {
+          echo ""
+          echo "# continuous-code-live: $BIN_PATH_MARKER"
+          echo "export PATH=\"\$HOME/.local/bin:\$PATH\""
+        } >> "$RC_FILE"
+      fi
+      say "  PATH export for $LOCAL_BIN added to $RC_FILE"
+      say "  Run: source $RC_FILE  (or open a new shell) for the commands to be available"
+    fi
+  fi
+else
+  say "Skipping CLI PATH setup (components.plugin=false)."
+fi
+
+# ============================================================================
 # Doctor / final summary
 # ============================================================================
 say ""
@@ -706,4 +762,5 @@ say "  2. Memory runtime config written to memory.json + .env (gitignored)"
 say "  3. Run 'opencode' inside a project to start the agent-only workflow"
 say "  4. Use /build, /fix, /explore etc. to trigger skill workflows"
 say "  5. Diagnostics any time:  ./install.sh --doctor"
+say "  6. Run 'continuous-code-workflow-tui' (new shell or: source $RC_FILE)"
 say ""

@@ -18,7 +18,7 @@
 import { readFileSync, existsSync } from "fs"
 import { join, dirname } from "path"
 import { fileURLToPath } from "url"
-import { homedir } from "os"
+import { homedir, networkInterfaces } from "os"
 import { uiBus } from "./ui-bus.js"
 import type { WorkflowEvent } from "./types.js"
 
@@ -48,7 +48,39 @@ interface SseWriter {
 
 let started = false
 let resolvedUrl = ""
+// LAN-accessible URL (http://<first-non-internal-IPv4>:<port>), or "" if the
+// host has no routable IPv4 interface. resolvedUrl stays the localhost URL for
+// local clients (the TUI connects locally); lanUrl is purely informational.
+let lanUrl = ""
 const sseWriters: Set<SseWriter> = new Set()
+
+/**
+ * First non-internal IPv4 address of this host, or undefined if none.
+ *
+ * Used to build a LAN-accessible dashboard URL. We derive the IP from
+ * os.networkInterfaces() rather than from the Bun server object, because
+ * Bun reports server.hostname as "0.0.0.0" (the bind address) rather than a
+ * routable address.
+ */
+function firstLanIPv4(): string | undefined {
+  let ifaces: ReturnType<typeof networkInterfaces>
+  try {
+    ifaces = networkInterfaces()
+  } catch {
+    return undefined
+  }
+  for (const name of Object.keys(ifaces)) {
+    for (const ni of ifaces[name] ?? []) {
+      // Node typings vary across versions: family may be the string "IPv4"
+      // or the numeric 4. Accept both.
+      const fam = (ni as { family: string | number }).family
+      if ((fam === "IPv4" || fam === 4) && !ni.internal && ni.address) {
+        return ni.address
+      }
+    }
+  }
+  return undefined
+}
 
 // ---------------------------------------------------------------------------
 // Asset resolution — robustly find workflow-dashboard.html
@@ -214,6 +246,11 @@ export async function startDashboard(
 
     // Build the Bun server.
     const server = BunGlobal.serve({
+      // Bind all network interfaces (0.0.0.0) so the dashboard is reachable
+      // from other devices on the local network — intentional, per user
+      // request. This exposes the dashboard to the local network, not just
+      // localhost. (Bun already defaults to 0.0.0.0; set explicitly for clarity.)
+      hostname: "0.0.0.0",
       port,
       // Disable idle timeout so SSE streams are not closed by Bun after 10 s
       // of inactivity. 0 = no timeout (streams stay open until the client
@@ -314,7 +351,12 @@ export async function startDashboard(
     const actualPort: number =
       typeof server?.port === "number" ? server.port : port
 
+    // resolvedUrl stays the localhost URL — local clients (the TUI) connect
+    // locally. The LAN URL is computed separately and surfaced for users who
+    // want to open the dashboard from another device on the network.
     resolvedUrl = `http://localhost:${actualPort}`
+    const lanIP = firstLanIPv4()
+    lanUrl = lanIP ? `http://${lanIP}:${actualPort}` : ""
     started = true
 
     // unref() the server so it doesn't keep the process alive.
@@ -322,9 +364,10 @@ export async function startDashboard(
       server.unref()
     }
 
-    // Surface the URL to the user.
-    await _notifyUser(resolvedUrl, client)
+    // Surface both URLs to the user (localhost + LAN if available).
+    await _notifyUser(resolvedUrl, lanUrl || undefined, client)
 
+    // Return contract unchanged: callers still get the localhost URL.
     return resolvedUrl
   } catch (err) {
     // EADDRINUSE or any other error — treat as graceful no-op.
@@ -343,12 +386,15 @@ export async function startDashboard(
   }
 }
 
-/** Internal: surface the URL via toast or log. Never throws. */
+/** Internal: surface the URL(s) via toast or log. Never throws. */
 async function _notifyUser(
-  url: string,
+  localUrl: string,
+  lanUrl?: string,
   client?: DashboardClient,
 ): Promise<void> {
-  const msg = `Workflow dashboard: ${url}`
+  const msg = lanUrl
+    ? `Workflow dashboard: ${localUrl}  (LAN: ${lanUrl})`
+    : `Workflow dashboard: ${localUrl}`
   try {
     if (typeof client?.tui?.showToast === "function") {
       await client.tui.showToast(msg)
@@ -371,12 +417,22 @@ export function getDashboardUrl(): string {
 }
 
 /**
+ * Return the LAN-accessible dashboard URL (http://<lan-ip>:<port>), or "" if
+ * the server is not started or the host has no routable non-internal IPv4.
+ * Lets the ultracode tool surface the LAN URL in its discoverability log.
+ */
+export function getDashboardLanUrl(): string {
+  return lanUrl
+}
+
+/**
  * Reset singleton state (test helper only — NOT for production use).
  * Exposed so smoke tests can re-start the server on a fresh ephemeral port.
  */
 export function _resetDashboardState(): void {
   started = false
   resolvedUrl = ""
+  lanUrl = ""
   sseWriters.clear()
   dashboardHtml = null
 }

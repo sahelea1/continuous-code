@@ -5,6 +5,8 @@ variant: max
 mode: primary
 temperature: 0.7
 steps: 200
+tools:
+  ultracode: true
 permission:
   read: deny
   edit: deny

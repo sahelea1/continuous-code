@@ -158,6 +158,23 @@
   // A local Bun.serve dashboard streams live phase/agent progress via SSE.
   // All values below are the defaults from src/workflow/config.ts.
   // Master on/off env override: OPENCODE_CONTINUOUS_WORKFLOW=0|1
+  //
+  // --- PERMISSIONS: frictionless automation (no prompts) ---
+  // The workflow worker agents (scout, oracle, sleuth, kraken, spark, arbiter,
+  // judge, plan-agent, phoenix, architect, scribe, memory-extractor, general,
+  // explore) run with their permissions PRE-ALLOWED (read/edit/write/bash/grep/
+  // glob/list/webfetch/websearch = "allow"). This is INTENTIONAL: the engine
+  // spawns these workers head-less via the OpenCode SDK (client.session.prompt),
+  // where there is no interactive session to answer a permission prompt — so a
+  // prompt would simply hang the run. Pre-allowing them is this project's
+  // analogue to `--dangerously-skip-permissions`, giving uninterrupted
+  // end-to-end automation. The delegation-only agents (orchestrator,
+  // ultra-orchestrator, drift-watcher) still DENY all built-in tools, and
+  // ultra-orchestrator is restricted to its single `ultracode` tool.
+  // This is wired in opencode.json: a top-level "permission" allow block is the
+  // base for all agents, and the three delegation agents override it to "deny".
+  // TO TIGHTEN: edit opencode.json — change the top-level "permission" allow
+  // values to "ask" (prompt) or "deny" (block), per capability or per agent.
   // ========================================================================
   "workflow": {
     "enabled":         true,   // master on/off for the workflow engine

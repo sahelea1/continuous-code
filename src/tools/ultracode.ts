@@ -33,7 +33,7 @@ import { ModelResolver } from "../workflow/model-resolver.js"
 import { workflowRegistry, type ActiveChild } from "../workflow/registry.js"
 import { uiBus } from "../workflow/ui-bus.js"
 import { loadWorkflowConfig } from "../workflow/config.js"
-import { startDashboard, getDashboardUrl } from "../workflow/dashboard.js"
+import { startDashboard, getDashboardUrl, getDashboardLanUrl } from "../workflow/dashboard.js"
 import { createDriftWatcher } from "../workflow/drift-watcher.js"
 
 type UltraClient = PluginInput["client"]
@@ -541,7 +541,9 @@ async function startDashboardSafely(
 
     if (resolvedUrl && !wasAlreadyRunning && !dashboardNoticeSent) {
       dashboardNoticeSent = true
-      notifyDashboardLiveOnce(client, resolvedUrl)
+      // Include the LAN URL (if the host has a routable IPv4) so the run is
+      // discoverable from other devices on the local network.
+      notifyDashboardLiveOnce(client, resolvedUrl, getDashboardLanUrl() || undefined)
     }
 
     return resolvedUrl
@@ -554,13 +556,18 @@ async function startDashboardSafely(
  * Fire-and-forget, one-time-per-process notice that the dashboard just came
  * up. Never awaited (must not delay the workflow) and never throws.
  */
-function notifyDashboardLiveOnce(client: UltraClient, url: string): void {
+function notifyDashboardLiveOnce(
+  client: UltraClient,
+  url: string,
+  lanUrl?: string,
+): void {
   try {
+    const where = lanUrl ? `${url} (LAN: ${lanUrl})` : url
     void client.app.log({
       body: {
         service: "ultracode",
         level: "info",
-        message: `ultracode workflow dashboard live at ${url} — open it in a browser to watch this run`,
+        message: `ultracode workflow dashboard live at ${where} — open it in a browser to watch this run`,
       },
     })
   } catch {
