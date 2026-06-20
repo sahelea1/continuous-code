@@ -1,4 +1,9 @@
 #!/usr/bin/env bash
+# Require bash (the script uses bash-only features like BASH_SOURCE)
+if [ -z "${BASH_VERSION:-}" ]; then
+  echo "ERROR: This installer requires bash. Run it as:  ./install.sh   (not 'sh install.sh')" >&2
+  exit 1
+fi
 set -euo pipefail
 
 # opencode-continuous install script
@@ -9,13 +14,16 @@ PLUGIN_DIR="$SCRIPT_DIR"
 
 # --- Flags ---
 SYMLINK=false
+NO_ALIAS=false
 for arg in "$@"; do
   case "$arg" in
     --symlink) SYMLINK=true ;;
+    --no-alias) NO_ALIAS=true ;;
     --help|-h)
-      echo "Usage: install.sh [--symlink]"
+      echo "Usage: install.sh [--symlink] [--no-alias]"
       echo ""
       echo "  --symlink   Symlink agent/command files instead of copying (for contributors)"
+      echo "  --no-alias  Skip adding the 'opencode' shell alias that enables background subagents"
       exit 0
       ;;
     *)
@@ -147,6 +155,52 @@ if [ ! -d "$THOUGHTS_DIR" ]; then
   echo "- ledgers/ - Continuity ledger markdown files" >> "$THOUGHTS_DIR/README.md"
 else
   echo "thoughts/ directory already exists (skipping)"
+fi
+
+# --- Configure shell alias for background subagents ---
+if [ "$NO_ALIAS" = false ]; then
+  # Detect the user's interactive shell rc file
+  USER_SHELL="$(getent passwd "$(id -un)" 2>/dev/null | cut -d: -f7 || true)"
+  if [ -z "$USER_SHELL" ]; then
+    USER_SHELL="${SHELL:-}"
+  fi
+
+  RC_FILE=""
+  case "$USER_SHELL" in
+    */zsh)
+      RC_FILE="$HOME/.zshrc"
+      ;;
+    */bash)
+      RC_FILE="$HOME/.bashrc"
+      ;;
+    *)
+      # Fallback: pick whichever rc file exists; prefer zsh if both exist
+      if [ -f "$HOME/.zshrc" ]; then
+        RC_FILE="$HOME/.zshrc"
+      elif [ -f "$HOME/.bashrc" ]; then
+        RC_FILE="$HOME/.bashrc"
+      else
+        RC_FILE="$HOME/.bashrc"
+      fi
+      ;;
+  esac
+
+  echo "Configuring opencode alias in $RC_FILE..."
+
+  ALIAS_MARKER='OPENCODE_EXPERIMENTAL_BACKGROUND_SUBAGENTS'
+  if grep -q "alias opencode=.*${ALIAS_MARKER}" "$RC_FILE" 2>/dev/null; then
+    echo "  opencode alias already configured in $RC_FILE (skipping)"
+  else
+    {
+      echo ""
+      echo "# opencode-continuous: enable experimental background subagents"
+      echo "alias opencode='OPENCODE_EXPERIMENTAL_BACKGROUND_SUBAGENTS=true opencode'"
+    } >> "$RC_FILE"
+    echo "  opencode alias added to $RC_FILE"
+    echo "  Run: source $RC_FILE  (or open a new shell) for the alias to take effect"
+  fi
+else
+  echo "Skipping opencode alias configuration (--no-alias)"
 fi
 
 # --- Done ---

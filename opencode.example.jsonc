@@ -3,6 +3,8 @@
 //
 // You can mix providers freely — each agent can use a different model.
 // Only override the agents you want to change; the rest keep their defaults.
+//
+// Tip: Run /autoconfagent to let the system auto-pick models based on your available providers.
 {
   "$schema": "https://opencode.ai/config.json",
   "agent": {
@@ -13,6 +15,10 @@
     "scout": { "model": "anthropic/claude-sonnet-4-6" },
 
     // Use Anthropic Claude Opus for research
-    "oracle": { "model": "anthropic/claude-opus-4-7" }
+    "oracle": { "model": "anthropic/claude-opus-4-7" },
+
+    // Example: Anthropic provider — use Claude for planning and review
+    "plan-agent": { "model": "anthropic/claude-opus-4-7" },
+    "judge": { "model": "anthropic/claude-sonnet-4-6" }
   }
 }

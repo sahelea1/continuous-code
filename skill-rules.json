@@ -53,6 +53,12 @@
       "critical": [],
       "recommended": [],
       "command": "/consensus"
+    },
+    {
+      "pattern": ["autoconf", "autoconfig", "auto config", "configure models", "tune models", "pick models", "choose model", "reasoning effort", "model selection"],
+      "critical": [],
+      "recommended": [],
+      "command": "/autoconfagent"
     }
   ]
 }

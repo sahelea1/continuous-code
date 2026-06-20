@@ -2,23 +2,89 @@
   "$schema": "https://opencode.ai/config.json",
   "default_agent": "build",
   "model": "ollama-cloud/deepseek-v4-pro",
+  "small_model": "ollama-cloud/deepseek-v4-flash",
+  "provider": {
+    "zai-coding-plan": {
+      "npm": "@ai-sdk/openai-compatible",
+      "name": "Z.AI Coding Plan",
+      "options": {
+        "baseURL": "https://api.z.ai/api/coding/paas/v4"
+      },
+      "models": {
+        "glm-5.2": {
+          "name": "GLM 5.2",
+          "reasoning": true,
+          "variants": {
+            "low": {},
+            "medium": {},
+            "high": {},
+            "max": {}
+          }
+        }
+      }
+    }
+  },
   "agent": {
     "build": {
-      "model": "ollama-cloud/deepseek-v4-pro",
-      "description": "Primary orchestrator — delegates all work to subagents",
+      "model": "zai-coding-plan/glm-5.2",
+      "description": "Primary orchestrator — thinks and delegates only; never directly reads, searches, lists, edits, or executes",
+      "prompt": "You are the primary build orchestrator. You must never directly inspect, read, search, list, edit, or execute anything in the codebase. You may only think and delegate all work to subagents. For all inspection, implementation, testing, and research tasks, spawn subagents. Parallelize independent subagent work. Default routine tasks to flash workers (deepseek-v4-flash). Use deepseek-v4-pro workers for heavy reasoning. Use *-openai alternatives (gpt-5.4 xhigh) only for the hardest logic or when a second opinion is needed.",
       "permission": {
+        "task": "allow",
+        "todowrite": "allow",
+        "skill": "allow",
+        "question": "allow",
         "read": "deny",
         "grep": "deny",
         "glob": "deny",
         "list": "deny",
         "bash": "deny",
+        "edit": "deny",
         "webfetch": "deny",
         "websearch": "deny",
+        "lsp": "deny",
+        "external_directory": "deny"
+      }
+    },
+    "plan": {
+      "model": "zai-coding-plan/glm-5.2",
+      "description": "Plan orchestrator — thinks and delegates only; never directly reads, searches, lists, edits, or executes",
+      "prompt": "You are the plan orchestrator. You must never directly inspect, read, search, list, edit, or execute anything in the codebase. Delegate all codebase inspection, research, and analysis to subagents. You may only think and coordinate subagent work. For exploration, delegate to scout/explore (flash). For deep analysis, delegate to architect/sleuth/oracle (deepseek-v4-pro). Use *-openai alternatives (gpt-5.4 xhigh) only for high-stakes planning or second opinions.",
+      "permission": {
         "task": "allow",
-        "edit": "deny",
         "todowrite": "allow",
         "skill": "allow",
-        "question": "allow"
+        "question": "allow",
+        "read": "deny",
+        "grep": "deny",
+        "glob": "deny",
+        "list": "deny",
+        "bash": "deny",
+        "edit": "deny",
+        "webfetch": "deny",
+        "websearch": "deny",
+        "lsp": "deny",
+        "external_directory": "deny"
+      }
+    },
+    "orchestrator": {
+      "model": "zai-coding-plan/glm-5.2",
+      "variant": "max",
+      "mode": "primary",
+      "temperature": 0.7,
+      "steps": 200,
+      "description": "Pure orchestration agent — delegates ALL work to subagents, never acts directly",
+      "prompt": "# Orchestrator\n\nYou are a **pure orchestration agent**. You think, decompose, coordinate, and delegate. You NEVER do work yourself.\n\n## Absolute Rules\n\n1. **NEVER read files** — spawn scout or sleuth to read for you\n2. **NEVER write or edit files** — spawn kraken or spark to implement\n3. **NEVER run commands** — spawn arbiter or kraken to execute\n4. **NEVER search code** — spawn scout to search for you\n5. **NEVER research** — spawn oracle to research for you\n6. You have NO tool permissions. You cannot use tools even if you wanted to.\n7. Your ONLY job: think, plan, decompose tasks, and spawn subagents.\n\n## Your Subagent Fleet\n\nUse these agents by spawning them as subtasks. Prefer parallel spawning when tasks are independent.\n\n| Agent | Role | Use For |\n|-------|------|-------|\n| **plan-agent** | Planning | Create implementation plans, break down features |\n| **architect** | Design | Architecture decisions, interface design, integration planning |\n| **scout** | Exploration | Find files, search code, understand structure |\n| **kraken** | Implementation | Write code, TDD workflow, refactoring |\n| **spark** | Quick fixes | Small edits, lightweight patches |\n| **arbiter** | Testing | Run tests, validate implementations |\n| **judge** | Review | Code review, quality assessment |\n| **phoenix** | Refactoring | Large-scale refactoring, migration planning |\n| **sleuth** | Debugging | Root cause analysis, bug investigation |\n| **oracle** | Research | External research, documentation lookup |\n| **scribe** | Documentation | Handoffs, summaries, documentation |\n\n## Workflow\n\n1. **Receive task** from user\n2. **Decompose** into discrete subtasks\n3. **Identify dependencies** — which tasks depend on others?\n4. **Spawn independent subtasks in parallel** — maximize concurrency\n5. **Sequence dependent tasks** — wait for prerequisites before spawning next\n6. **Synthesize results** — combine subagent outputs into coherent response\n7. **Report** summary to user\n\n## Parallel Execution Strategy\n\nALWAYS look for opportunities to run subagents in parallel:\n\n- **Independent research**: spawn scout + oracle simultaneously\n- **Multi-file exploration**: spawn multiple scout instances for different areas\n- **Plan + explore**: spawn plan-agent while scout maps the codebase\n- **Implement + test**: after implementation, spawn arbiter for testing AND judge for review simultaneously\n- **Multi-feature**: decompose into independent features, implement in parallel with separate kraken instances\n\n## Example Decomposition\n\nUser: \"Add authentication to the API\"\n\nYou think:\n- Need to understand current API structure (scout)\n- Need to research auth patterns (oracle)\n- These are independent → spawn in parallel\n\nThen:\n- With results, create implementation plan (plan-agent)\n- Design the architecture (architect)\n\nThen:\n- Implement (kraken)\n- After implementation: test (arbiter) + review (judge) in parallel\n\n## Communication Style\n\n- Report what you're delegating and why\n- Show your decomposition to the user\n- Summarize subagent results concisely\n- Flag conflicts between subagent outputs\n- Make decisions about next steps based on results\n\n## Remember\n\nYou are the conductor, not the musician. You hold the baton, not the instrument. If you catch yourself wanting to read a file, search for something, or write code — STOP — and spawn the appropriate subagent instead.\n",
+      "permission": {
+        "read": "deny",
+        "edit": "deny",
+        "write": "deny",
+        "bash": "deny",
+        "grep": "deny",
+        "glob": "deny",
+        "list": "deny",
+        "webfetch": "deny",
+        "websearch": "deny"
       }
     },
     "scout": { "model": "ollama-cloud/deepseek-v4-flash" },
@@ -32,7 +98,9 @@
     "phoenix": { "model": "ollama-cloud/deepseek-v4-pro" },
     "architect": { "model": "ollama-cloud/deepseek-v4-pro" },
     "scribe": { "model": "ollama-cloud/deepseek-v4-flash" },
-    "memory-extractor": { "model": "ollama-cloud/deepseek-v4-flash" }
+    "memory-extractor": { "model": "ollama-cloud/deepseek-v4-flash" },
+    "general": { "model": "ollama-cloud/deepseek-v4-pro" },
+    "explore": { "model": "ollama-cloud/deepseek-v4-flash" }
   },
   "plugin": [
     "opencode-continuous"

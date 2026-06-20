@@ -14,19 +14,22 @@
  +--------------------------------------------------+
 ```
 
-**Agent-only orchestration for OpenCode -- 12 specialists, zero direct execution.**
+**Agent-only orchestration for OpenCode -- 14 specialist subagents (plus 3 delegate-only orchestrators), zero direct execution.**
 
 ---
 
 ## Feature Highlights
 
-- **Agent-only execution** -- the primary `build` agent never reads, greps, or runs commands; everything goes through the `task` tool to 12 specialized subagents
+- **Agent-only execution** -- orchestrators never read, grep, or run commands; everything goes through the `task` tool to specialized subagents
+- **Three orchestrator tiers** -- `build`, `plan`, and the general-purpose `orchestrator` agent; each delegates only and has all direct-tool permissions denied
+- **High-effort variants** -- optional `*-openai` subagents (GPT-5.4 at `xhigh` reasoning) for the hardest logic or second opinions
 - **Parallel delegation** -- spawn multiple subagents concurrently via the `parallel_delegate` custom tool
 - **Session continuity** -- YAML handoffs and markdown ledgers persist state across sessions, compatible with Continuous Claude v3 format
 - **Skill activation** -- intent keywords in your prompt are detected and routed to the right agent pipeline automatically
-- **8 slash commands** -- `/fix`, `/build`, `/tdd`, `/explore`, `/review`, `/refactor`, `/handoff`, `/resume`
-- **Per-agent model config** -- every agent can use a different model and provider; defaults to free Ollama Cloud (DeepSeek V4)
-- **Two-layer enforcement** -- frontmatter permissions + plugin hook ensure the orchestrator delegates, never executes
+- **10 slash commands** -- `/fix`, `/build`, `/tdd`, `/explore`, `/review`, `/refactor`, `/handoff`, `/resume`, `/consensus`, `/autoconfagent`
+- **Per-agent model config** -- every agent can use a different model and provider; defaults to free Ollama Cloud (DeepSeek V4) for workers and Z.AI GLM-5.2 for orchestrators
+- **Auto-configuration** -- `/autoconfagent` detects the providers on your host and writes the optimal model + reasoning effort for every agent into `opencode.json`
+- **Two-layer enforcement** -- frontmatter permissions + plugin hook ensure orchestrators delegate, never execute
 - **Docker support** -- isolated container execution for testing and CI
 
 ---
@@ -38,6 +41,7 @@
 ```bash
 git clone https://github.com/your-org/opencode-continuous.git
 cd opencode-continuous && ./install.sh
+source ~/.bashrc   # or ~/.zshrc — activates the opencode alias
 opencode
 ```
 
@@ -66,6 +70,27 @@ This will:
 4. Install the plugin into OpenCode's config-level `node_modules`
 5. Create `opencode.json` in the current directory (existing file backed up to `.bak`)
 6. Create the `thoughts/shared/handoffs/` and `thoughts/ledgers/` directory skeleton
+7. Add an `opencode` shell alias to your rc file (`.bashrc` or `.zshrc`) that enables OpenCode's **experimental background subagents**
+
+After install, activate the alias without opening a new shell:
+
+```bash
+source ~/.bashrc   # or source ~/.zshrc
+```
+
+#### Background subagents alias
+
+The installer writes this alias to your shell rc file:
+
+```bash
+alias opencode='OPENCODE_EXPERIMENTAL_BACKGROUND_SUBAGENTS=true opencode'
+```
+
+This enables OpenCode's experimental parallel background subagent feature, which the orchestrators rely on for concurrent delegation. If you prefer to manage this yourself or are using a wrapper script, pass `--no-alias` to skip this step:
+
+```bash
+./install.sh --no-alias
+```
 
 Requires [OpenCode](https://opencode.ai) v1.14.0+ and either `npm` or `bun`.
 
@@ -103,6 +128,9 @@ cp opencode.json /path/to/your/project/opencode.json
 # 5. Create the continuity directory skeleton
 mkdir -p /path/to/your/project/thoughts/shared/handoffs
 mkdir -p /path/to/your/project/thoughts/ledgers
+
+# 6. Enable background subagents (add to your shell rc manually)
+echo "alias opencode='OPENCODE_EXPERIMENTAL_BACKGROUND_SUBAGENTS=true opencode'" >> ~/.bashrc
 ```
 
 ### Contributor Setup
@@ -119,27 +147,56 @@ This creates symlinks instead of copies. Changes to `agents/*.md` or `commands/*
 
 ## Configuration
 
-### Default Model Assignments
+### Providers and Default Models
 
-All 13 agents (1 primary + 12 subagents) and their default models:
+The default configuration uses two providers:
 
-| Agent | Role | Default Model |
-|-------|------|---------------|
-| build (primary) | Orchestrator -- delegates all work | `ollama-cloud/deepseek-v4-pro` |
-| scout | Codebase exploration | `ollama-cloud/deepseek-v4-flash` |
-| oracle | External research | `ollama-cloud/deepseek-v4-pro` |
-| sleuth | Bug investigation | `ollama-cloud/deepseek-v4-pro` |
-| kraken | Implementation (TDD) | `ollama-cloud/deepseek-v4-pro` |
-| spark | Quick fixes | `ollama-cloud/deepseek-v4-flash` |
-| arbiter | Test execution | `ollama-cloud/deepseek-v4-flash` |
-| judge | Code review | `ollama-cloud/deepseek-v4-pro` |
-| plan-agent | Implementation planning | `ollama-cloud/deepseek-v4-pro` |
-| phoenix | Refactoring planning | `ollama-cloud/deepseek-v4-pro` |
-| architect | Feature/integration design | `ollama-cloud/deepseek-v4-pro` |
-| scribe | Docs, handoffs, ledgers | `ollama-cloud/deepseek-v4-flash` |
-| memory-extractor | Extract session learnings | `ollama-cloud/deepseek-v4-flash` |
+| Provider | Purpose | Auth |
+|----------|---------|------|
+| `zai-coding-plan` (Z.AI GLM-5.2) | Orchestrators (`build`, `plan`, `orchestrator`) | `opencode auth login` |
+| `ollama-cloud` (DeepSeek V4) | All worker subagents | `opencode auth login` |
 
-Defaults use Ollama Cloud (free, no API key required beyond `opencode auth login`).
+Both are free tiers that authenticate through OpenCode's standard login. No separate API keys are required beyond `opencode auth login`.
+
+The default tier split is intentional: orchestrators get a stronger reasoning model (GLM-5.2) while light workers use the faster flash variant of DeepSeek V4, keeping cost low for high-volume delegation.
+
+### Agent Table
+
+| Agent | Role | Tier | Default Model |
+|-------|------|------|---------------|
+| **build** | Primary orchestrator -- delegates all work | Orchestrator | `zai-coding-plan/glm-5.2` |
+| **plan** | Plan orchestrator -- delegates all work | Orchestrator | `zai-coding-plan/glm-5.2` |
+| **orchestrator** | General orchestrator -- delegates all work | Orchestrator | `zai-coding-plan/glm-5.2` (`max` variant) |
+| scout | Codebase exploration | Light | `ollama-cloud/deepseek-v4-flash` |
+| explore | Quick codebase browsing | Light | `ollama-cloud/deepseek-v4-flash` |
+| spark | Small one-file fixes | Light | `ollama-cloud/deepseek-v4-flash` |
+| arbiter | Test execution and verification | Light | `ollama-cloud/deepseek-v4-flash` |
+| scribe | Docs, handoffs, ledgers | Light | `ollama-cloud/deepseek-v4-flash` |
+| memory-extractor | Extract session learnings | Light | `ollama-cloud/deepseek-v4-flash` |
+| oracle | External research | Heavy | `ollama-cloud/deepseek-v4-pro` |
+| sleuth | Bug investigation | Heavy | `ollama-cloud/deepseek-v4-pro` |
+| kraken | Implementation (TDD) | Heavy | `ollama-cloud/deepseek-v4-pro` |
+| judge | Code review | Heavy | `ollama-cloud/deepseek-v4-pro` |
+| plan-agent | Implementation planning | Heavy | `ollama-cloud/deepseek-v4-pro` |
+| phoenix | Refactoring planning | Heavy | `ollama-cloud/deepseek-v4-pro` |
+| architect | Feature/integration design | Heavy | `ollama-cloud/deepseek-v4-pro` |
+| general | General-purpose heavy worker | Heavy | `ollama-cloud/deepseek-v4-pro` |
+
+### High-Effort OpenAI Variants
+
+For the hardest reasoning tasks or when a second opinion is useful, optional `*-openai` agent files are provided. These run on `openai/gpt-5.4` at `xhigh` reasoning effort. The orchestrator's system prompt instructs it to route to these only when the standard worker is insufficient:
+
+| Agent | OpenAI variant |
+|-------|---------------|
+| kraken | kraken-openai |
+| sleuth | sleuth-openai |
+| oracle | oracle-openai |
+| judge | judge-openai |
+| plan-agent | plan-agent-openai |
+| phoenix | phoenix-openai |
+| architect | architect-openai |
+
+These are available as subagents but are not used by default. The orchestrator's instructions say: "Use `*-openai` alternatives (GPT-5.4 xhigh) only for the hardest logic or when a second opinion is needed."
 
 ### Swapping Models
 
@@ -148,7 +205,7 @@ Override any agent in your project's `opencode.json`. Only specify the agents yo
 ```json
 {
   "agent": {
-    "kraken": { "model": "openai/gpt-5.5" }
+    "kraken": { "model": "openai/gpt-5.4" }
   }
 }
 ```
@@ -160,9 +217,10 @@ You can mix providers freely. Each agent resolves its model independently.
 ```jsonc
 {
   "agent": {
-    "kraken": { "model": "openai/gpt-5.5" },            // OpenAI for implementation
-    "scout":  { "model": "anthropic/claude-sonnet-4-6" }, // Anthropic for exploration
-    "oracle": { "model": "anthropic/claude-opus-4-7" }    // Anthropic for research
+    "build":   { "model": "anthropic/claude-opus-4-8" },    // Anthropic for orchestrator
+    "kraken":  { "model": "openai/gpt-5.4" },               // OpenAI for implementation
+    "scout":   { "model": "anthropic/claude-sonnet-4-6" },  // Anthropic for exploration
+    "oracle":  { "model": "anthropic/claude-opus-4-7" }     // Anthropic for research
   }
 }
 ```
@@ -178,6 +236,7 @@ See `opencode.example.jsonc` for ready-to-copy patterns.
 | Agent | When to Use |
 |-------|-------------|
 | scout | Read files, search code, understand codebase structure |
+| explore | Quick browse of a directory or file set |
 | oracle | Research external APIs, documentation, or web content |
 | sleuth | Investigate a bug, trace a root cause |
 | kraken | Implement a feature, write production code, run TDD loops |
@@ -189,8 +248,9 @@ See `opencode.example.jsonc` for ready-to-copy patterns.
 | architect | Design a new feature or integration at the system level |
 | scribe | Write handoffs, update continuity ledgers, session notes |
 | memory-extractor | Pull learnings out of a session for future recall |
+| general | General-purpose heavy work that doesn't fit a specialist role |
 
-You never invoke agents directly. The primary `build` agent dispatches them based on your request or the active slash command.
+You never invoke agents directly. The active orchestrator dispatches them based on your request or the active slash command.
 
 ### Command Pipelines
 
@@ -204,6 +264,52 @@ You never invoke agents directly. The primary `build` agent dispatches them base
 | `/refactor` | phoenix plans -> kraken implements -> judge reviews -> arbiter verifies |
 | `/handoff` | scribe writes YAML handoff + updates continuity ledger |
 | `/resume` | scribe loads latest handoff -> context restored for next session |
+| `/consensus` | configure and control the multi-model consensus panel |
+| `/autoconfagent` | detect available providers and auto-assign optimal models to all agents |
+
+---
+
+## Auto-Configuration: `/autoconfagent`
+
+Running `/autoconfagent` tells the LLM to inspect which providers are actually authenticated on your host, then automatically pick the best model and reasoning effort (`variant`) for every agent and write the result into `opencode.json`. You never hand-edit anything -- the command uses the `autoconfig_inspect` and `autoconfig_apply` tools to do this programmatically, with a `.bak` backup of your previous config.
+
+### What it does
+
+1. **Inspect** -- calls `autoconfig_inspect` to enumerate all providers, authentication status, available models, and reasoning variant support.
+2. **Choose** -- assigns models by role tier:
+   - **Orchestrators** (`build`, `plan`, `orchestrator`): strongest available model at the highest effort (`xhigh` if supported, otherwise `max`)
+   - **Heavy subagents** (`oracle`, `sleuth`, `kraken`, `judge`, `plan-agent`, `phoenix`, `architect`, `general`): strong model at `medium` or `high` effort
+   - **Light subagents** (`scout`, `spark`, `arbiter`, `scribe`, `memory-extractor`, `explore`): fast/cheap model at `low` effort
+3. **Apply** -- calls `autoconfig_apply` once with the full assignments map and reports a table of every change.
+4. **Report** -- shows you `agent | old model -> new model | effort` grouped by tier, then tells you to restart opencode.
+
+### Example: Anthropic-only host
+
+If only the Anthropic provider is authenticated, `/autoconfagent` would produce assignments like:
+
+```
+build           anthropic/claude-opus-4-8   xhigh
+plan            anthropic/claude-opus-4-8   xhigh
+orchestrator    anthropic/claude-opus-4-8   xhigh
+kraken          anthropic/claude-sonnet-4-6  high
+oracle          anthropic/claude-sonnet-4-6  high
+sleuth          anthropic/claude-sonnet-4-6  high
+architect       anthropic/claude-sonnet-4-6  high
+plan-agent      anthropic/claude-sonnet-4-6  high
+judge           anthropic/claude-sonnet-4-6  medium
+phoenix         anthropic/claude-sonnet-4-6  medium
+general         anthropic/claude-sonnet-4-6  medium
+scout           anthropic/claude-haiku-4-6   low
+spark           anthropic/claude-haiku-4-6   low
+arbiter         anthropic/claude-haiku-4-6   low
+scribe          anthropic/claude-haiku-4-6   low
+memory-extractor anthropic/claude-haiku-4-6  low
+explore         anthropic/claude-haiku-4-6   low
+```
+
+You can also pass a preference hint: `/autoconfagent prefer anthropic` or `/autoconfagent stay on the current providers`.
+
+After the command finishes, **restart opencode** for the new config to take effect.
 
 ---
 
@@ -249,14 +355,14 @@ A toggleable sub-plugin that layers on top of the agent-only orchestration model
 
 ### Concept
 
-- A **panel** of models is queried simultaneously — for example OpenRouter models *and* ollama-cloud models at the same time, each with its own reasoning effort.
+- A **panel** of models is queried simultaneously -- for example OpenRouter models *and* ollama-cloud models at the same time, each with its own reasoning effort.
 - Exactly one panel member is the **main** (dominant) model. It is the tie-breaker.
 - The orchestrator calls `consensus_deliberate` to form any substantive answer and bases its reply on the returned consensus. All other tool usage and file edits still go through subagents via the `task` tool.
-- **Single instance, no recursion** — there is exactly ONE consensus instance: the primary orchestrator. Subagents it spawns via `task` are ordinary single-model workers; they do NOT run consensus and cannot call `consensus_deliberate`. `consensus_deliberate` refuses to run in a child/sub-agent session, deliberations are serialized one-at-a-time within the process, and the system prompt reinforces that no subagent may run in consensus mode.
+- **Single instance, no recursion** -- there is exactly ONE consensus instance: the primary orchestrator. Subagents it spawns via `task` are ordinary single-model workers; they do NOT run consensus and cannot call `consensus_deliberate`. `consensus_deliberate` refuses to run in a child/sub-agent session, deliberations are serialized one-at-a-time within the process, and the system prompt reinforces that no subagent may run in consensus mode.
 
 ### Configuration
 
-Consensus is configured in `consensus.json` at the project root (default **disabled** — opt-in). See `consensus.example.jsonc` for a fully commented template.
+Consensus is configured in `consensus.json` at the project root (default **disabled** -- opt-in). See `consensus.example.jsonc` for a fully commented template.
 
 ```json
 {
@@ -276,10 +382,10 @@ Consensus is configured in `consensus.json` at the project root (default **disab
 }
 ```
 
-- **Toggle** with the `consensus_toggle` / `consensus_configure` tools (or `/consensus on|off`), or via the `CONSENSUS_ENABLED` env var. You normally never edit `consensus.json` by hand — see *Managing consensus from the OpenCode TUI* below.
-- **Per-model reasoning effort** — `none|minimal|low|medium|high|xhigh`, applied for OpenRouter models only (ignored for ollama-cloud, which has no reasoning object).
-- **Cross-provider mixing** — list members on different providers; OpenRouter and ollama-cloud are queried in parallel.
-- **`requireParameters`** (default `false`) — when `false`, OpenRouter drops unsupported params (e.g. `reasoning`) so models still answer (graceful degradation); set `true` for strict reasoning routing (404s if an endpoint lacks `reasoning`), and only when the whole panel is curated to reasoning-capable models.
+- **Toggle** with the `consensus_toggle` / `consensus_configure` tools (or `/consensus on|off`), or via the `CONSENSUS_ENABLED` env var. You normally never edit `consensus.json` by hand -- see *Managing consensus from the OpenCode TUI* below.
+- **Per-model reasoning effort** -- `none|minimal|low|medium|high|xhigh`, applied for OpenRouter models only (ignored for ollama-cloud, which has no reasoning object).
+- **Cross-provider mixing** -- list members on different providers; OpenRouter and ollama-cloud are queried in parallel.
+- **`requireParameters`** (default `false`) -- when `false`, OpenRouter drops unsupported params (e.g. `reasoning`) so models still answer (graceful degradation); set `true` for strict reasoning routing (404s if an endpoint lacks `reasoning`), and only when the whole panel is curated to reasoning-capable models.
 
 ### Synthesis modes
 
@@ -290,8 +396,8 @@ Consensus is configured in `consensus.json` at the project root (default **disab
 
 ### Environment variables
 
-- `OPENROUTER_API_KEY` — required for OpenRouter models.
-- `OLLAMA_API_KEY` — for ollama-cloud models (if your endpoint requires auth).
+- `OPENROUTER_API_KEY` -- required for OpenRouter models.
+- `OLLAMA_API_KEY` -- for ollama-cloud models (if your endpoint requires auth).
 
 Keys are read only from these env vars (named by each provider's `apiKeyEnv`); never store keys in `consensus.json`. Use `consensus_status` to see which keys are present (reported as `set`/`missing`, never the value).
 
@@ -307,7 +413,7 @@ Keys are read only from these env vars (named by each provider's `apiKeyEnv`); n
 
 ### Managing consensus from the OpenCode TUI
 
-You control everything from the terminal — by chatting or via the `/consensus` slash command. **You never hand-edit `consensus.json`**; the plugin writes it programmatically through the tools above (all writes share one serializer).
+You control everything from the terminal -- by chatting or via the `/consensus` slash command. **You never hand-edit `consensus.json`**; the plugin writes it programmatically through the tools above (all writes share one serializer).
 
 In plain chat, just describe what you want, e.g.:
 
@@ -334,24 +440,34 @@ Use `consensus_models` to discover slugs/prices/reasoning support, then `consens
 
 ### Cost note
 
-Running multiple premium models in parallel multiplies cost — every deliberation issues one request per panel member plus (in `main-judge` mode) one synthesis call by the main model. Keep the panel small and reasoning effort proportionate, and prefer cheaper models for non-main members.
+Running multiple premium models in parallel multiplies cost -- every deliberation issues one request per panel member plus (in `main-judge` mode) one synthesis call by the main model. Keep the panel small and reasoning effort proportionate, and prefer cheaper models for non-main members.
 
 ---
 
 ## Architecture
 
-### Two-Layer Enforcement
+### Orchestrator Design
 
-The primary `build` agent is prevented from executing tools directly through two independent layers:
+There are three orchestrator agents. All three have identical permission policies: every direct-action tool (`read`, `grep`, `glob`, `list`, `bash`, `edit`, `webfetch`, `websearch`) is denied. The only permitted tools are `task`, `todowrite`, `skill`, and `question`.
+
+| Agent | Primary Use | Notes |
+|-------|------------|-------|
+| `build` | General build and implementation workflows | Registered as `default_agent` |
+| `plan` | Planning-heavy workflows, feature decomposition | Routed by `/build`, `/tdd` |
+| `orchestrator` | General-purpose orchestration | `max` variant, 200 steps, temperature 0.7 |
+
+All three instruct the model to spawn subagents in parallel wherever tasks are independent, and to use `*-openai` variants only for the hardest reasoning or second opinions.
+
+### Two-Layer Enforcement
 
 ```
   User prompt
        |
        v
   +--------------------+
-  |  build agent       |  Layer 1: frontmatter permissions
-  |                    |  read, grep, glob, list, bash,
-  |  (orchestrator)    |  webfetch, websearch, edit = "deny"
+  |  Orchestrator      |  Layer 1: frontmatter permissions
+  |  (build / plan /   |  read, grep, glob, list, bash,
+  |   orchestrator)    |  webfetch, websearch, edit = "deny"
   |                    |  task, todowrite, skill, question = "allow"
   +---------+----------+
             |
@@ -383,6 +499,7 @@ Both layers are required. The frontmatter blocks the tool call; the hook makes t
 | skill-activation | `src/hooks/skill-activation.ts` | Detects intent keywords and routes to agent pipelines |
 | compaction-handoff | `src/hooks/compaction-handoff.ts` | Auto-saves a handoff when context window compacts |
 | memory-awareness | `src/hooks/memory-awareness.ts` | Surfaces relevant learnings from prior sessions |
+| consensus-mode | `src/hooks/consensus-mode.ts` | Injects multi-model consensus instructions into the primary agent's system prompt when consensus is enabled |
 
 ### Custom Tools
 
@@ -392,6 +509,8 @@ Both layers are required. The frontmatter blocks the tool call; the hook makes t
 | handoff_load | `src/tools/handoff-load.ts` | Load the latest handoff for a session |
 | ledger_update | `src/tools/ledger-update.ts` | Update a continuity ledger in `thoughts/ledgers/` |
 | parallel_delegate | `src/tools/parallel-delegate.ts` | Spawn multiple subagents concurrently |
+| autoconfig_inspect | `src/tools/autoconfig.ts` | Enumerate providers, models, and auth status |
+| autoconfig_apply | `src/tools/autoconfig.ts` | Write per-agent model + effort assignments to `opencode.json` |
 
 ---
 
@@ -481,6 +600,8 @@ This removes agent and command files from `~/.config/opencode/agents/` and `~/.c
 - `dist/` (built plugin output)
 
 To remove session data manually: `rm -rf thoughts/`
+
+The installer-added shell alias is not removed automatically. To remove it, delete the `opencode-continuous` alias block from your `~/.bashrc` or `~/.zshrc`.
 
 ---
 

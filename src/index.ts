@@ -14,6 +14,7 @@ import { consensusStatus } from "./tools/consensus-status.js"
 import { consensusToggle } from "./tools/consensus-toggle.js"
 import { consensusModels } from "./tools/consensus-models.js"
 import { consensusConfigure } from "./tools/consensus-configure.js"
+import { autoconfigInspect, autoconfigApply } from "./tools/autoconfig.js"
 
 const PLUGIN_ID = "opencode-continuous"
 
@@ -56,6 +57,8 @@ const server: Plugin = async (input, _options) => {
       consensus_toggle: consensusToggle,
       consensus_models: consensusModels,
       consensus_configure: consensusConfigure,
+      autoconfig_inspect: autoconfigInspect,
+      autoconfig_apply: autoconfigApply,
     },
   }
 }
